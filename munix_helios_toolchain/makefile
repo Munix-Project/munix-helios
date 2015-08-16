@@ -28,14 +28,14 @@ all: munix-helios
 # Tool invocations
 munix-helios: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
-	@echo 'Invoking: Cross GCC Linker'
-	i686-pc-toaru-gcc  -o "munix-helios" $(OBJS) $(USER_OBJS) $(LIBS)
+	@echo 'Invoking: Cross GCC Archiver'
+	i686-pc-toaru-ar -r  "munix-helios" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
 # Other Targets
 clean:
-	-$(RM) $(EXECUTABLES)$(OBJS)$(C_DEPS) munix-helios
+	-$(RM) $(OBJS)$(ARCHIVES)$(C_DEPS) munix-helios
 	-@echo ' '
 
 .PHONY: all clean dependents
