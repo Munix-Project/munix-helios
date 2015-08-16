@@ -1,0 +1,12 @@
+prefix=/usr
+exec_prefix=${prefix}
+libdir=/usr/lib
+includedir=/usr/include
+
+Name: osmesa
+Description: Mesa Off-screen Rendering library
+Requires: 
+Version: 7.5.2
+Libs: -L${libdir} -lOSMesa
+Libs.private: -lm -lpthread  
+Cflags: -I${includedir}
