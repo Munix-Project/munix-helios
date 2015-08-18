@@ -14,4 +14,6 @@ C_DEPS :=
 # Every subdirectory with source files must be described here
 SUBDIRS := \
 helios-src/bin \
+helios-src/usr/lib/graphics \
+helios-src/usr/lib \
 
