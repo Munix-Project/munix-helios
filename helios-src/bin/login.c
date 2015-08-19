@@ -100,9 +100,6 @@ int main(int argc, char ** argv) {
 		}
 
 		system("cat /etc/motd");
-		system("/bin/sh");
-
-		for(;;);
 
 		pid_t pid = getpid();
 		pid_t f = fork();

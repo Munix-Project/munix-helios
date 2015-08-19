@@ -45,9 +45,10 @@ void helios_auth_set_vars(void) {
 
 	/* Set USER, HOME and SHELL variables for all users (mainly root) */
 	if (!p) {
-		char tmp[10];
+		char * tmp = malloc(sizeof(char) * 10);
 		sprintf(tmp, "%d", uid);
 		setenv("USER", strdup(tmp), 1);
+		free(tmp);
 		setenv("HOME", "/", 1);
 		setenv("SHELL", "/bin/sh", 1);
 	} else {
