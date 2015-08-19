@@ -153,12 +153,13 @@ char _hostname[256];
 
 /* function to update the cached username */
 void getuser() {
-	char * tmp = getenv("USER");
+	strcpy(username, "root");
+	/*FIXME char * tmp = getenv("USER");
 	if (tmp) {
 		strcpy(username, tmp);
 	} else {
 		sprintf(username, "%d", getuid());
-	}
+	}*/
 }
 
 /* function to update the cached hostname */
@@ -171,6 +172,7 @@ void gethost() {
 	memcpy(_hostname, buf.nodename, len+1);
 }
 
+/*FIXME*/
 /* Draw the user prompt */
 void draw_prompt(int ret) {
 	/* Get the time */
@@ -199,15 +201,15 @@ void draw_prompt(int ret) {
 	}
 
 	/* Print the prompt. */
-	printf("\033]1;%s@%s:%s\007", username, _hostname, _cwd);
-	printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\033[38;5;221m%s\033[38;5;59m@\033[38;5;81m%s ",
+	printf("%s@%s:%s ", username, _hostname, _cwd);
+	/*printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\033[38;5;221m%s\033[38;5;59m@\033[38;5;81m%s ",
 			date_buffer, time_buffer,
-			username, _hostname);
+			username, _hostname);*/
 	if (ret != 0) {
 		printf("\033[38;5;167m%d ", ret);
 	}
 
-	printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
+	//printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
 	fflush(stdout);
 }
 
@@ -854,7 +856,6 @@ void show_usage(int argc, char * argv[]) {
 
 
 int main(int argc, char ** argv) {
-
 	int  nowait = 0;
 	int  free_cmd = 0;
 	int  last_ret = 0;
@@ -898,11 +899,9 @@ int main(int argc, char ** argv) {
 		buffer_size = read_entry(buffer);
 		last_ret = shell_exec(buffer, buffer_size);
 		shell_scroll = 0;
-
 	}
 
 exit:
-
 	return 0;
 }
 

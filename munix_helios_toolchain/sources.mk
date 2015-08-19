@@ -16,4 +16,6 @@ SUBDIRS := \
 helios-src/bin \
 helios-src/usr/lib/graphics \
 helios-src/usr/lib \
+helios-src/usr/lib/security/crypt \
+helios-src/usr/lib/security \
 

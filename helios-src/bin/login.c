@@ -1,8 +1,12 @@
-/*
- * login.c
+/* vim: tabstop=4 shiftwidth=4 noexpandtab
+ * This file is part of ToaruOS and is released under the terms
+ * of the NCSA / University of Illinois License - see LICENSE.md
+ * Copyright (C) 2013-2014 Kevin Lange
  *
- *  Created on: Aug 17, 2015
- *      Author: miguel
+ * Login Service
+ *
+ * Provides the user with a login prompt and starts their session.
+ *
  */
 
 #include <stdio.h>
@@ -17,51 +21,111 @@
 #include <errno.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
+#include <security/helios_auth.h>
 
-uint32_t pid_child = 0;
+#define LINE_LEN 1024
 
-void sig_into_shell(int sig) {
-	if(pid_child)
-		kill(pid_child, sig);
+uint32_t child = 0;
+
+void sig_pass(int sig) {
+	/* Pass onto the shell */
+	if (child) {
+		kill(child, sig);
+	}
+	/* Else, ignore */
 }
 
 void sig_segv(int sig) {
 	printf("Segmentation fault.\n");
-	exit(sig + 127);
-	/*Shit went down son*/
+	exit(127 + sig);
+	/* no return */
 }
 
-int main(int argc, char * argv[]) {
-	/* First print system info: */
+int main(int argc, char ** argv) {
+
 	printf("\n");
 	system("uname -a");
 	printf("\n");
 
-	signal(SIGINT, sig_into_shell);
-	signal(SIGWINCH, sig_into_shell);
+	signal(SIGINT, sig_pass);
+	signal(SIGWINCH, sig_pass);
 	signal(SIGSEGV, sig_segv);
 
-	/* Entering login screen: */
-	while(1) {
-		char * usr = malloc(sizeof(char) * 1024);
-		char * pass = malloc(sizeof(char) * 1024);
+	while (1) {
+		char * username = malloc(sizeof(char) * 1024);
+		char * password = malloc(sizeof(char) * 1024);
 
-		char host[256];
-		syscall_gethostname(host);
+		/* TODO: gethostname() */
+		char _hostname[256];
+		syscall_gethostname(_hostname);
 
-		/* Ask for username: */
-		fprintf(stdout, "@ %s - login: ", host); fflush(stdout);
-		char * ret = fgets(usr, 1024, stdin);
-		if(!ret) {
+		fprintf(stdout, "%s login: ", _hostname);
+		fflush(stdout);
+		char * r = fgets(username, 1024, stdin);
+		if (!r) {
 			clearerr(stdin);
-			fprintf(stderr,"\n");
-			fprintf(stderr, "\nLogin Failed.\n");
+			fprintf(stderr, "\n");
+			sleep(2);
+			fprintf(stderr, "\nLogin failed.\n");
 			continue;
 		}
-		usr[strlen(usr) - 1] = '\0';
+		username[strlen(username)-1] = '\0';
 
-		/* Ask for password: */
-		fprintf(stdout, "password: "); fflush(stdout);
+		fprintf(stdout, "password: ");
+		fflush(stdout);
+
+		/* Disable echo */
+		struct termios old, new;
+		tcgetattr(fileno(stdin), &old);
+		new = old;
+		new.c_lflag &= (~ECHO);
+		tcsetattr(fileno(stdin), TCSAFLUSH, &new);
+
+		r = fgets(password, 1024, stdin);
+		if (!r) {
+			clearerr(stdin);
+			tcsetattr(fileno(stdin), TCSAFLUSH, &old);
+			fprintf(stderr, "\n");
+			sleep(2);
+			fprintf(stderr, "\nLogin failed.\n");
+			continue;
+		}
+		password[strlen(password)-1] = '\0';
+		tcsetattr(fileno(stdin), TCSAFLUSH, &old);
+		fprintf(stdout, "\n");
+
+		int uid = helios_auth(username, password);
+
+		if (uid < 0) {
+			sleep(2);
+			fprintf(stdout, "\nLogin failed.\n");
+			continue;
+		}
+
+		system("cat /etc/motd");
+		system("/bin/sh");
+		for(;;); /*FIXME*/
+
+		pid_t pid = getpid();
+		pid_t f = fork();
+		if (getpid() != pid) {
+			setuid(uid);
+			toaru_auth_set_vars();
+			char * args[] = {
+				getenv("SHELL"),
+				NULL
+			};
+			int i = execvp(args[0], args);
+		} else {
+			child = f;
+			int result;
+			do {
+				result = waitpid(f, NULL, 0);
+			} while (result < 0);
+		}
+		child = 0;
+		free(username);
+		free(password);
 	}
 
 	return 0;

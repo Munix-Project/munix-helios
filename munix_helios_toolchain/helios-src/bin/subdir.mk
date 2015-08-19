@@ -4,6 +4,7 @@
 
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
+../helios-src/bin/cat.c \
 ../helios-src/bin/init.c \
 ../helios-src/bin/login.c \
 ../helios-src/bin/sh.c \
@@ -11,6 +12,7 @@ C_SRCS += \
 ../helios-src/bin/uname.c 
 
 OBJS += \
+./helios-src/bin/cat.o \
 ./helios-src/bin/init.o \
 ./helios-src/bin/login.o \
 ./helios-src/bin/sh.o \
@@ -18,6 +20,7 @@ OBJS += \
 ./helios-src/bin/uname.o 
 
 C_DEPS += \
+./helios-src/bin/cat.d \
 ./helios-src/bin/init.d \
 ./helios-src/bin/login.d \
 ./helios-src/bin/sh.d \
@@ -26,6 +29,13 @@ C_DEPS += \
 
 
 # Each subdirectory must supply rules for building sources it contributes
+helios-src/bin/%.o: ../helios-src/bin/%.c
+	@echo 'Building file: $<'
+	@echo 'Invoking: Cross GCC Compiler'
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	@echo 'Finished building: $<'
+	@echo ' '
+
 helios-src/bin/init.o: ../helios-src/bin/init.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
@@ -33,10 +43,10 @@ helios-src/bin/init.o: ../helios-src/bin/init.c
 	@echo 'Finished building: $<'
 	@echo ' '
 
-helios-src/bin/%.o: ../helios-src/bin/%.c
+helios-src/bin/login.o: ../helios-src/bin/login.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g -MMD -MP -MF"$(@:%.o=%.d)" -MT"$(@:%.o=%.d)" -o "$@" "$<"
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/login.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

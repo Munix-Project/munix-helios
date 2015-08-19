@@ -8,6 +8,8 @@ RM := rm -rf
 
 # All of the sources participating in the build are defined here
 -include sources.mk
+-include helios-src/usr/lib/security/crypt/subdir.mk
+-include helios-src/usr/lib/security/subdir.mk
 -include helios-src/usr/lib/graphics/subdir.mk
 -include helios-src/usr/lib/subdir.mk
 -include helios-src/bin/subdir.mk
