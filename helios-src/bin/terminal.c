@@ -5,20 +5,10 @@
  *      Author: miguel
  *  Credits: this file has been created using toaruos
  */
-#include <stdlib.h>
-#include <stdio.h>
 #include <terminal/terminal.h>
 
 /************** SECTION 1: ANSI *********************/
-#ifdef _KERNEL_
-# include <system.h>
-# include <types.h>
-# include <logging.h>
-static void _spin_lock(volatile int * foo) { return; }
-static void _spin_unlock(volatile int * foo) { return; }
-# define rgba(r,g,b,a) (((uint32_t)a * 0x1000000) + ((uint32_t)r * 0x10000) + ((uint32_t)g * 0x100) + ((uint32_t)b * 0x1))
-# define rgb(r,g,b) rgba(r,g,b,0xFF)
-#else
+#include <stdio.h>
 #include <stdlib.h>
 #include <math.h>
 #include <syscall.h>
@@ -27,7 +17,6 @@ static void _spin_unlock(volatile int * foo) { return; }
 #include <graphics/vga-color.h>
 #define _spin_lock spin_lock
 #define _spin_unlock spin_unlock
-#endif
 
 #define MAX_ARGS 1024
 

@@ -35,6 +35,8 @@
 #include <assert.h>	/* assert() */
 #include <security/crypt/sha2.h>
 
+void __stack_chk_fail(void) {}
+
 /*
  * ASSERT NOTE:
  * Some sanity checking code is included using assert().  On my FreeBSD
@@ -516,7 +518,7 @@ void SHA256_Transform(SHA256_CTX* context, const sha2_word32* data) {
 
 #endif /* SHA2_UNROLL_TRANSFORM */
 
-void SHA256_Update(SHA256_CTX* context, const sha2_byte *data, size_t len) {
+void SHA256_Update(SHA256_CTX* context, const sha2_byte *data, unsigned int len) {
 	unsigned int	freespace, usedspace;
 
 	if (len == 0) {
@@ -650,7 +652,7 @@ char *SHA256_End(SHA256_CTX* context, char buffer[]) {
 	return buffer;
 }
 
-char* SHA256_Data(const sha2_byte* data, size_t len, char digest[SHA256_DIGEST_STRING_LENGTH]) {
+char* SHA256_Data(const sha2_byte* data, unsigned int len, char digest[SHA256_DIGEST_STRING_LENGTH]) {
 	SHA256_CTX	context;
 
 	SHA256_Init(&context);
@@ -664,6 +666,8 @@ void SHA512_Init(SHA512_CTX* context) {
 	if (context == (SHA512_CTX*)0) {
 		return;
 	}
+
+	context->buffer = malloc(sizeof(uint8_t) * SHA512_BLOCK_LENGTH);
 	MEMCPY_BCOPY(context->state, sha512_initial_hash_value, SHA512_DIGEST_LENGTH);
 	MEMSET_BZERO(context->buffer, SHA512_BLOCK_LENGTH);
 	context->bitcount[0] = context->bitcount[1] =  0;
@@ -838,7 +842,7 @@ void SHA512_Transform(SHA512_CTX* context, const sha2_word64* data) {
 
 #endif /* SHA2_UNROLL_TRANSFORM */
 
-void SHA512_Update(SHA512_CTX* context, const sha2_byte *data, size_t len) {
+void SHA512_Update(SHA512_CTX* context, const sha2_byte *data, unsigned int len) {
 	unsigned int	freespace, usedspace;
 
 	if (len == 0) {
@@ -956,9 +960,9 @@ void SHA512_Final(sha2_byte digest[], SHA512_CTX* context) {
 	MEMSET_BZERO(context, sizeof(SHA512_CTX));
 }
 
-char *SHA512_End(SHA512_CTX* context, char buffer[]) {
-	sha2_byte	digest[SHA512_DIGEST_LENGTH], *d = digest;
-	int		i;
+char *SHA512_End(SHA512_CTX* context, char * buffer) {
+	sha2_byte * digest = malloc(sizeof(sha2_byte) * SHA512_DIGEST_LENGTH), *d = digest;
+	int	i;
 
 	/* Sanity check: */
 	assert(context != (SHA512_CTX*)0);
@@ -975,11 +979,14 @@ char *SHA512_End(SHA512_CTX* context, char buffer[]) {
 	} else {
 		MEMSET_BZERO(context, sizeof(SHA512_CTX));
 	}
+
 	MEMSET_BZERO(digest, SHA512_DIGEST_LENGTH);
+	free(context->buffer);
+	free(digest);
 	return buffer;
 }
 
-char* SHA512_Data(const sha2_byte* data, size_t len, char digest[SHA512_DIGEST_STRING_LENGTH]) {
+char* SHA512_Data(const sha2_byte* data, unsigned int len, char * digest) {
 	SHA512_CTX	context;
 
 	SHA512_Init(&context);
@@ -998,7 +1005,7 @@ void SHA384_Init(SHA384_CTX* context) {
 	context->bitcount[0] = context->bitcount[1] = 0;
 }
 
-void SHA384_Update(SHA384_CTX* context, const sha2_byte* data, size_t len) {
+void SHA384_Update(SHA384_CTX* context, const sha2_byte* data, unsigned int len) {
 	SHA512_Update((SHA512_CTX*)context, data, len);
 }
 
@@ -1054,7 +1061,7 @@ char *SHA384_End(SHA384_CTX* context, char buffer[]) {
 	return buffer;
 }
 
-char* SHA384_Data(const sha2_byte* data, size_t len, char digest[SHA384_DIGEST_STRING_LENGTH]) {
+char* SHA384_Data(const sha2_byte* data, unsigned int len, char digest[SHA384_DIGEST_STRING_LENGTH]) {
 	SHA384_CTX	context;
 
 	SHA384_Init(&context);

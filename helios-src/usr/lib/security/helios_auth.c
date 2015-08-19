@@ -12,22 +12,10 @@
 #include <pwd.h>
 #include <security/crypt/sha2.h>
 
-/* God damn compiler didn't want to compile, so I put this here and now it does -.-' */
-void __stack_chk_fail(void) {}
-
-char hash [SHA512_DIGEST_STRING_LENGTH];
-
-/* FIXME: */
 int helios_auth(char * user, char * pass) {
-	/* XXX BYPASS AUTHORIZATION FOR NOW, SHA2 SEEMS TO BE NOT WORKING */
-	if(!strcmp(user,"root") && !strcmp(pass,"toor")) return 1;
-	else return -1;
-
 	/* Generate SHA512 */
-	/*char * str = SHA512_Data(pass, strlen(pass), hash);
-	fprintf("%d",str); fflush(stdout);
-	//fprintf("strlen: %d str: %s", strlen(str), str);
-	 */
+	char * hash = malloc(sizeof(char) * SHA512_DIGEST_STRING_LENGTH);
+	SHA512_Data(pass, strlen(pass), hash);
 
 	/* Open up /etc/master.passwd */
 	FILE * master = fopen("/etc/master.passwd", "r");
@@ -39,10 +27,12 @@ int helios_auth(char * user, char * pass) {
 		if (!strcmp(p->pw_name, user) && !strcmp(p->pw_passwd, hash)) {
 			/* Success */
 			fclose(master);
+			free(hash);
 			return p->pw_uid;
 		}
 	}
 
+	free(hash);
 	fclose(master);
 	return -1;
 
@@ -54,12 +44,7 @@ void helios_auth_set_vars(void) {
 	struct passwd * p = getpwuid(uid);
 
 	/* Set USER, HOME and SHELL variables for all users (mainly root) */
-	/*FIXME*/
-	setenv("USER", "root", 1);
-	setenv("HOME", "/", 1);
-	setenv("SHELL", "/bin/sh", 1);
-
-	/*if (!p) {
+	if (!p) {
 		char tmp[10];
 		sprintf(tmp, "%d", uid);
 		setenv("USER", strdup(tmp), 1);
@@ -70,7 +55,7 @@ void helios_auth_set_vars(void) {
 		setenv("HOME", strdup(p->pw_dir), 1);
 		setenv("SHELL", strdup(p->pw_shell), 1);
 		setenv("WM_THEME", strdup(p->pw_comment), 1);
-	}*/
+	}
 	endpwent();
 
 	setenv("PATH", "/usr/bin:/bin", 0);

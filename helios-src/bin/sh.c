@@ -202,14 +202,14 @@ void draw_prompt(int ret) {
 
 	/* Print the prompt. */
 	printf("%s@%s:%s ", username, _hostname, _cwd);
-	/*printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\033[38;5;221m%s\033[38;5;59m@\033[38;5;81m%s ",
+	printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\033[38;5;221m%s\033[38;5;59m@\033[38;5;81m%s ",
 			date_buffer, time_buffer,
-			username, _hostname);*/
+			username, _hostname);
 	if (ret != 0) {
 		printf("\033[38;5;167m%d ", ret);
 	}
 
-	//printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
+	printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
 	fflush(stdout);
 }
 

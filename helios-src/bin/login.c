@@ -65,7 +65,6 @@ int main(int argc, char ** argv) {
 		if (!r) {
 			clearerr(stdin);
 			fprintf(stderr, "\n");
-			sleep(2);
 			fprintf(stderr, "\nLogin failed.\n");
 			continue;
 		}
@@ -86,7 +85,6 @@ int main(int argc, char ** argv) {
 			clearerr(stdin);
 			tcsetattr(fileno(stdin), TCSAFLUSH, &old);
 			fprintf(stderr, "\n");
-			sleep(2);
 			fprintf(stderr, "\nLogin failed.\n");
 			continue;
 		}
@@ -97,20 +95,20 @@ int main(int argc, char ** argv) {
 		int uid = helios_auth(username, password);
 
 		if (uid < 0) {
-			sleep(2);
 			fprintf(stdout, "\nLogin failed.\n");
 			continue;
 		}
 
 		system("cat /etc/motd");
 		system("/bin/sh");
-		for(;;); /*FIXME*/
+
+		for(;;);
 
 		pid_t pid = getpid();
 		pid_t f = fork();
 		if (getpid() != pid) {
 			setuid(uid);
-			toaru_auth_set_vars();
+			helios_auth_set_vars();
 			char * args[] = {
 				getenv("SHELL"),
 				NULL

@@ -105,7 +105,7 @@ typedef struct _SHA256_CTX {
 typedef struct _SHA512_CTX {
 	uint64_t	state[8];
 	uint64_t	bitcount[2];
-	uint8_t	buffer[SHA512_BLOCK_LENGTH];
+	uint8_t	* buffer;
 } SHA512_CTX;
 
 #else /* SHA2_USE_INTTYPES_H */
@@ -145,8 +145,8 @@ char* SHA384_Data(const uint8_t*, size_t, char[SHA384_DIGEST_STRING_LENGTH]);
 void SHA512_Init(SHA512_CTX*);
 void SHA512_Update(SHA512_CTX*, const uint8_t*, size_t);
 void SHA512_Final(uint8_t[SHA512_DIGEST_LENGTH], SHA512_CTX*);
-char* SHA512_End(SHA512_CTX*, char[SHA512_DIGEST_STRING_LENGTH]);
-char* SHA512_Data(const uint8_t*, size_t, char[SHA512_DIGEST_STRING_LENGTH]);
+char* SHA512_End(SHA512_CTX*, char*);
+char* SHA512_Data(const uint8_t*, size_t, char*);
 
 #else /* SHA2_USE_INTTYPES_H */
 
@@ -165,8 +165,8 @@ char* SHA384_Data(const u_int8_t*, size_t, char[SHA384_DIGEST_STRING_LENGTH]);
 void SHA512_Init(SHA512_CTX*);
 void SHA512_Update(SHA512_CTX*, const u_int8_t*, size_t);
 void SHA512_Final(u_int8_t[SHA512_DIGEST_LENGTH], SHA512_CTX*);
-char* SHA512_End(SHA512_CTX*, char[SHA512_DIGEST_STRING_LENGTH]);
-char* SHA512_Data(const u_int8_t*, size_t, char[SHA512_DIGEST_STRING_LENGTH]);
+char* SHA512_End(SHA512_CTX*, char*);
+char* SHA512_Data(const u_int8_t*, size_t, char*);
 
 #endif /* SHA2_USE_INTTYPES_H */
 
