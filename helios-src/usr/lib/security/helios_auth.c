@@ -49,8 +49,10 @@ void helios_auth_set_vars(void) {
 		sprintf(tmp, "%d", uid);
 		setenv("USER", strdup(tmp), 1);
 		free(tmp);
+
 		setenv("HOME", "/", 1);
 		setenv("SHELL", "/bin/sh", 1);
+		setenv("WM_THEME", strdup(p->pw_comment), 1);
 	} else {
 		setenv("USER", strdup(p->pw_name), 1);
 		setenv("HOME", strdup(p->pw_dir), 1);

@@ -48,6 +48,8 @@ int main(int argc, char * argv[]) {
 
 	uname(&uts);
 
+	printf("\e[41;1;33m");
+
 	if (flags & FLAG_SYSNAME) {
 		if (space++) printf(" ");
 		printf("%s", uts.sysname);
@@ -73,7 +75,7 @@ int main(int argc, char * argv[]) {
 		printf("%s", uts.machine);
 	}
 
-	printf("\n");
+	printf("\e[0m\n");
 
 	return 0;
 }

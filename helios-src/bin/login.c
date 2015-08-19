@@ -55,12 +55,10 @@ int main(int argc, char ** argv) {
 		char * username = malloc(sizeof(char) * 1024);
 		char * password = malloc(sizeof(char) * 1024);
 
-		/* TODO: gethostname() */
 		char _hostname[256];
 		syscall_gethostname(_hostname);
 
-		fprintf(stdout, "%s login: ", _hostname);
-		fflush(stdout);
+		printf("\e[36;47;1;7m%s login:\e[0m ", _hostname); fflush(stdout);
 		char * r = fgets(username, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
@@ -70,8 +68,7 @@ int main(int argc, char ** argv) {
 		}
 		username[strlen(username)-1] = '\0';
 
-		fprintf(stdout, "password: ");
-		fflush(stdout);
+		printf("\e[36;47;1;7mpassword:\e[0m "); fflush(stdout);
 
 		/* Disable echo */
 		struct termios old, new;
@@ -93,12 +90,12 @@ int main(int argc, char ** argv) {
 		fprintf(stdout, "\n");
 
 		int uid = helios_auth(username, password);
-
 		if (uid < 0) {
 			fprintf(stdout, "\nLogin failed.\n");
 			continue;
 		}
 
+		fprintf(stdout, "\e[37;1;42m\nLogin Successful!\n\e[0m"); fflush(stdout);
 		system("cat /etc/motd");
 
 		pid_t pid = getpid();
@@ -110,7 +107,7 @@ int main(int argc, char ** argv) {
 				getenv("SHELL"),
 				NULL
 			};
-			int i = execvp(args[0], args);
+			execvp(args[0], args);
 		} else {
 			child = f;
 			int result;

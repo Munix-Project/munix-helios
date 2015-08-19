@@ -8,15 +8,24 @@
 #include <terminal/terminal.h>
 
 /************** SECTION 1: ANSI *********************/
-#include <stdio.h>
+
+#ifdef _KERNEL_
+# include <system.h>
+# include <types.h>
+# include <logging.h>
+static void _spin_lock(volatile int * foo) { return; }
+static void _spin_unlock(volatile int * foo) { return; }
+# define rgba(r,g,b,a) (((uint32_t)a * 0x1000000) + ((uint32_t)r * 0x10000) + ((uint32_t)g * 0x100) + ((uint32_t)b * 0x1))
+# define rgb(r,g,b) rgba(r,g,b,0xFF)
+#else
 #include <stdlib.h>
 #include <math.h>
 #include <syscall.h>
 #include <spinlock.h>
 #include <graphics/graphics.h>
-#include <graphics/vga-color.h>
 #define _spin_lock spin_lock
 #define _spin_unlock spin_unlock
+#endif
 
 #define MAX_ARGS 1024
 
@@ -34,16 +43,17 @@ static uint16_t max(uint16_t a, uint16_t b) {
 
 /* Write the contents of the buffer, as they were all non-escaped data. */
 static void ansi_dump_buffer(term_state_t * s) {
-	for (int i = 0; i < s->bufsize; ++i)
-		s->calls->writer(s->buff[i]);
+	for (int i = 0; i < s->buflen; ++i) {
+		s->callbacks->writer(s->buffer[i]);
+	}
 }
 
 /* Add to the internal buffer for the ANSI parser */
 static void ansi_buf_add(term_state_t * s, char c) {
-	if (s->bufsize >= TERM_BUFF_SIZE-1) return;
-	s->buff[s->bufsize] = c;
-	s->bufsize++;
-	s->buff[s->bufsize] = 0;
+	if (s->buflen >= TERM_BUF_LEN-1) return;
+	s->buffer[s->buflen] = c;
+	s->buflen++;
+	s->buffer[s->buflen] = '\0';
 }
 
 static int to_eight(uint32_t codepoint, char * out) {
@@ -81,9 +91,10 @@ static int to_eight(uint32_t codepoint, char * out) {
 	return strlen(out);
 }
 
+
 static void _ansi_put(term_state_t * s, char c) {
-	term_callback_t * callbacks = s->calls;
-	switch (s->esc) {
+	term_callbacks_t * callbacks = s->callbacks;
+	switch (s->escape) {
 		case 0:
 			/* We are not escaped, check for escape character */
 			if (c == ANSI_ESCAPE) {
@@ -91,8 +102,8 @@ static void _ansi_put(term_state_t * s, char c) {
 				 * Enable escape mode, setup a buffer,
 				 * fill the buffer, get out of here.
 				 */
-				s->esc    = 1;
-				s->bufsize    = 0;
+				s->escape    = 1;
+				s->buflen    = 0;
 				ansi_buf_add(s, c);
 				return;
 			} else if (c == 0) {
@@ -114,21 +125,21 @@ static void _ansi_put(term_state_t * s, char c) {
 		case 1:
 			/* We're ready for [ */
 			if (c == ANSI_BRACKET) {
-				s->esc = 2;
+				s->escape = 2;
 				ansi_buf_add(s, c);
 			} else if (c == ANSI_BRACKET_RIGHT) {
-				s->esc = 3;
+				s->escape = 3;
 				ansi_buf_add(s, c);
 			} else if (c == ANSI_OPEN_PAREN) {
-				s->esc = 4;
+				s->escape = 4;
 				ansi_buf_add(s, c);
 			} else {
 				/* This isn't a bracket, we're not actually escaped!
 				 * Get out of here! */
 				ansi_dump_buffer(s);
 				callbacks->writer(c);
-				s->esc = 0;
-				s->bufsize = 0;
+				s->escape = 0;
+				s->buflen = 0;
 				return;
 			}
 			break;
@@ -139,7 +150,7 @@ static void _ansi_put(term_state_t * s, char c) {
 				char * save; /* strtok_r pointer */
 				char * argv[MAX_ARGS]; /* escape arguments */
 				/* Get rid of the front of the buffer */
-				strtok_r(s->buff,"[",&save);
+				strtok_r(s->buffer,"[",&save);
 				pch = strtok_r(NULL,";",&save);
 				/* argc = Number of arguments, obviously */
 				int argc = 0;
@@ -175,13 +186,13 @@ static void _ansi_put(term_state_t * s, char c) {
 						break;
 					case ANSI_SCP:
 						{
-							s->last_x = callbacks->get_cur_x();
-							s->last_y = callbacks->get_cur_y();
+							s->save_x = callbacks->get_csr_x();
+							s->save_y = callbacks->get_csr_y();
 						}
 						break;
 					case ANSI_RCP:
 						{
-							callbacks->set_cur(s->last_x, s->last_y);
+							callbacks->set_csr(s->save_x, s->save_y);
 						}
 						break;
 					case ANSI_SGR:
@@ -292,11 +303,11 @@ static void _ansi_put(term_state_t * s, char c) {
 						if (argc > 0) {
 							if (!strcmp(argv[0], "?1049")) {
 								callbacks->cls(2);
-								callbacks->set_cur(0,0);
+								callbacks->set_csr(0,0);
 							} else if (!strcmp(argv[0], "?1000")) {
-								s->is_mouse = 1;
+								s->mouse_on = 1;
 							} else if (!strcmp(argv[0], "?1002")) {
-								s->is_mouse = 2;
+								s->mouse_on = 2;
 							}
 						}
 						break;
@@ -305,9 +316,9 @@ static void _ansi_put(term_state_t * s, char c) {
 							if (!strcmp(argv[0], "?1049")) {
 								/* TODO: Unimplemented */
 							} else if (!strcmp(argv[0], "?1000")) {
-								s->is_mouse = 0;
+								s->mouse_on = 0;
 							} else if (!strcmp(argv[0], "?1002")) {
-								s->is_mouse = 0;
+								s->mouse_on = 0;
 							}
 						}
 						break;
@@ -317,7 +328,7 @@ static void _ansi_put(term_state_t * s, char c) {
 							if (argc) {
 								i = atoi(argv[0]);
 							}
-							callbacks->set_cur(min(callbacks->get_cur_x() + i, s->t_width - 1), callbacks->get_cur_y());
+							callbacks->set_csr(min(callbacks->get_csr_x() + i, s->width - 1), callbacks->get_csr_y());
 						}
 						break;
 					case ANSI_CUU:
@@ -326,7 +337,7 @@ static void _ansi_put(term_state_t * s, char c) {
 							if (argc) {
 								i = atoi(argv[0]);
 							}
-							callbacks->set_cur(callbacks->get_cur_x(), max(callbacks->get_cur_y() - i, 0));
+							callbacks->set_csr(callbacks->get_csr_x(), max(callbacks->get_csr_y() - i, 0));
 						}
 						break;
 					case ANSI_CUD:
@@ -335,7 +346,7 @@ static void _ansi_put(term_state_t * s, char c) {
 							if (argc) {
 								i = atoi(argv[0]);
 							}
-							callbacks->set_cur(callbacks->get_cur_x(), min(callbacks->get_cur_y() + i, s->t_height - 1));
+							callbacks->set_csr(callbacks->get_csr_x(), min(callbacks->get_csr_y() + i, s->height - 1));
 						}
 						break;
 					case ANSI_CUB:
@@ -344,28 +355,29 @@ static void _ansi_put(term_state_t * s, char c) {
 							if (argc) {
 								i = atoi(argv[0]);
 							}
-							callbacks->set_cur(max(callbacks->get_cur_x() - i,0), callbacks->get_cur_y());
+							callbacks->set_csr(max(callbacks->get_csr_x() - i,0), callbacks->get_csr_y());
 						}
 						break;
 					case ANSI_CHA:
 						if (argc < 1) {
-							callbacks->set_cur(0,callbacks->get_cur_y());
+							callbacks->set_csr(0,callbacks->get_csr_y());
 						} else {
-							callbacks->set_cur(min(max(atoi(argv[0]), 1), s->t_width) - 1, callbacks->get_cur_y());
+							callbacks->set_csr(min(max(atoi(argv[0]), 1), s->width) - 1, callbacks->get_csr_y());
 						}
 						break;
 					case ANSI_CUP:
 						if (argc < 2) {
-							callbacks->set_cur(0,0);
+							callbacks->set_csr(0,0);
 						} else {
-							callbacks->set_cur(min(max(atoi(argv[1]), 1), s->t_width) - 1, min(max(atoi(argv[0]), 1), s->t_height) - 1);
+							callbacks->set_csr(min(max(atoi(argv[1]), 1), s->width) - 1, min(max(atoi(argv[0]), 1), s->height) - 1);
 						}
 						break;
 					case ANSI_ED:
-						if (argc < 1)
+						if (argc < 1) {
 							callbacks->cls(0);
-						else
+						} else {
 							callbacks->cls(atoi(argv[0]));
+						}
 						break;
 					case ANSI_EL:
 						{
@@ -374,25 +386,25 @@ static void _ansi_put(term_state_t * s, char c) {
 								what = atoi(argv[0]);
 							}
 							if (what == 0) {
-								x = callbacks->get_cur_x();
-								y = s->t_width;
+								x = callbacks->get_csr_x();
+								y = s->width;
 							} else if (what == 1) {
 								x = 0;
-								y = callbacks->get_cur_x();
+								y = callbacks->get_csr_x();
 							} else if (what == 2) {
 								x = 0;
-								y = s->t_width;
+								y = s->width;
 							}
 							for (int i = x; i < y; ++i) {
-								callbacks->set_cell(i, callbacks->get_cur_y(), ' ');
+								callbacks->set_cell(i, callbacks->get_csr_y(), ' ');
 							}
 						}
 						break;
 					case ANSI_DSR:
 						{
 							char out[24];
-							sprintf(out, "\033[%d;%dR", callbacks->get_cur_y() + 1, callbacks->get_cur_x() + 1);
-							callbacks->input_buffer(out);
+							sprintf(out, "\033[%d;%dR", callbacks->get_csr_y() + 1, callbacks->get_csr_x() + 1);
+							callbacks->input_buffer_stuff(out);
 						}
 						break;
 					case ANSI_SU:
@@ -425,10 +437,11 @@ static void _ansi_put(term_state_t * s, char c) {
 						}
 						break;
 					case 'd':
-						if (argc < 1)
-							callbacks->set_cur(callbacks->get_cur_x(), 0);
-						else
-							callbacks->set_cur(callbacks->get_cur_x(), atoi(argv[0]) - 1);
+						if (argc < 1) {
+							callbacks->set_csr(callbacks->get_csr_x(), 0);
+						} else {
+							callbacks->set_csr(callbacks->get_csr_x(), atoi(argv[0]) - 1);
+						}
 						break;
 					default:
 						/* Meh */
@@ -441,8 +454,8 @@ static void _ansi_put(term_state_t * s, char c) {
 					callbacks->set_color(s->fg, s->bg);
 				}
 				/* Clear out the buffer */
-				s->bufsize = 0;
-				s->esc = 0;
+				s->buflen = 0;
+				s->escape = 0;
 				return;
 			} else {
 				/* Still escaped */
@@ -456,7 +469,7 @@ static void _ansi_put(term_state_t * s, char c) {
 				char * save; /* strtok_r pointer */
 				char * argv[MAX_ARGS]; /* escape arguments */
 				/* Get rid of the front of the buffer */
-				strtok_r(s->buff,"]",&save);
+				strtok_r(s->buffer,"]",&save);
 				pch = strtok_r(NULL,";",&save);
 				/* argc = Number of arguments, obviously */
 				int argc = 0;
@@ -475,16 +488,16 @@ static void _ansi_put(term_state_t * s, char c) {
 					} /* Currently, no other options */
 				}
 				/* Clear out the buffer */
-				s->bufsize = 0;
-				s->esc = 0;
+				s->buflen = 0;
+				s->escape = 0;
 				return;
 			} else {
 				/* Still escaped */
-				if (c == '\n' || s->bufsize == 255) {
+				if (c == '\n' || s->buflen == 255) {
 					ansi_dump_buffer(s);
 					callbacks->writer(c);
-					s->bufsize = 0;
-					s->esc = 0;
+					s->buflen = 0;
+					s->escape = 0;
 					return;
 				}
 				ansi_buf_add(s, c);
@@ -499,8 +512,8 @@ static void _ansi_put(term_state_t * s, char c) {
 				ansi_dump_buffer(s);
 				callbacks->writer(c);
 			}
-			s->esc = 0;
-			s->bufsize = 0;
+			s->escape = 0;
+			s->buflen = 0;
 			break;
 	}
 }
@@ -511,34 +524,30 @@ void ansi_put(term_state_t * s, char c) {
 	_spin_unlock(&s->lock);
 }
 
-term_state_t * ansi_init(term_state_t * s, int w, int y, term_callback_t * callbacks_in) {
+term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * callbacks_in) {
+
 	if (!s) {
 		s = malloc(sizeof(term_state_t));
 	}
 
-	memset(s, 0, sizeof(term_state_t));
+	memset(s, 0x00, sizeof(term_state_t));
 
 	/* Terminal Defaults */
 	s->fg     = TERM_DEFAULT_FG;    /* Light grey */
 	s->bg     = TERM_DEFAULT_BG;    /* Black */
 	s->flags  = TERM_DEFAULT_FLAGS; /* Nothing fancy*/
-	s->t_width  = w;
-	s->t_height = y;
+	s->width  = w;
+	s->height = y;
 	s->box    = 0;
-	s->calls = callbacks_in;
-	s->calls->set_color(s->fg, s->bg);
-	s->is_mouse = 0;
+	s->callbacks = callbacks_in;
+	s->callbacks->set_color(s->fg, s->bg);
+	s->mouse_on = 0;
 
 	return s;
 }
-
 /************** SECTION 2: TERMINAL "DRIVER" FOR ANSI *********************/
-
-#include <stdio.h>
-#include <stdint.h>
 #include <syscall.h>
 #include <string.h>
-#include <stdlib.h>
 #include <signal.h>
 #include <time.h>
 #include <fcntl.h>
@@ -548,13 +557,10 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callback_t * callb
 #include <sys/wait.h>
 #include <getopt.h>
 #include <errno.h>
-
 #include <wchar.h>
-
 #include <utf8decode.h>
 #include <pthread_os.h>
 #include <kbd.h>
-#include <graphics/graphics.h>
 #include <graphics/vga-color.h>
 
 #define USE_BELL 0
@@ -729,7 +735,7 @@ static void cell_set(uint16_t x, uint16_t y, uint32_t c, uint32_t fg, uint32_t b
 	cell->c     = c;
 	cell->fg    = fg;
 	cell->bg    = bg;
-	cell->flag = flags;
+	cell->flags = flags;
 }
 
 static void cell_redraw(uint16_t x, uint16_t y) {
@@ -738,7 +744,7 @@ static void cell_redraw(uint16_t x, uint16_t y) {
 	if (((uint32_t *)cell)[0] == 0x00000000) {
 		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_FG, TERM_DEFAULT_BG, TERM_DEFAULT_FLAGS);
 	} else {
-		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flag);
+		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flags);
 	}
 }
 
@@ -748,7 +754,7 @@ static void cell_redraw_inverted(uint16_t x, uint16_t y) {
 	if (((uint32_t *)cell)[0] == 0x00000000) {
 		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_BG, TERM_DEFAULT_FG, TERM_DEFAULT_FLAGS | ANSI_SPECBG);
 	} else {
-		term_write_char(cell->c, x * char_width, y * char_height, cell->bg, cell->fg, cell->flag | ANSI_SPECBG);
+		term_write_char(cell->c, x * char_width, y * char_height, cell->bg, cell->fg, cell->flags | ANSI_SPECBG);
 	}
 }
 
@@ -758,7 +764,7 @@ static void cell_redraw_box(uint16_t x, uint16_t y) {
 	if (((uint32_t *)cell)[0] == 0x00000000) {
 		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_FG, TERM_DEFAULT_BG, TERM_DEFAULT_FLAGS | ANSI_BORDER);
 	} else {
-		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flag | ANSI_BORDER);
+		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flags | ANSI_BORDER);
 	}
 }
 
@@ -1087,7 +1093,7 @@ void usage(char * argv[]) {
 			argv[0]);
 }
 
-term_callback_t term_callbacks = {
+term_callbacks_t term_callbacks = {
 	/* writer*/
 	&term_write,
 	/* set_color*/
@@ -1126,7 +1132,9 @@ void reinit(int send_sig) {
 	term_redraw_all();
 }
 
-void * handle_kbd(void * garbage) {
+
+
+void * handle_incoming(void * garbage) {
 	int kfd = open("/dev/kbd", O_RDONLY);
 	key_event_t event;
 	char c;
@@ -1241,7 +1249,7 @@ int main(int argc, char ** argv) {
 		pthread_create(&wait_for_exit_thread, NULL, wait_for_exit, NULL);
 
 		pthread_t handle_incoming_thread;
-		pthread_create(&handle_incoming_thread, NULL, handle_kbd, NULL);
+		pthread_create(&handle_incoming_thread, NULL, handle_incoming, NULL);
 
 		pthread_t cursor_blink_thread;
 		pthread_create(&cursor_blink_thread, NULL, blink_cursor, NULL);
