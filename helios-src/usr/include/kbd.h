@@ -133,7 +133,7 @@ typedef struct {
 	int kr_super;
 } key_event_state_t;
 
-kbd_key_t kbd_key(key_event_state_t * state, unsigned char c);
+extern kbd_key_t kbd_key(key_event_state_t * state, unsigned char c);
 int kbd_scancode(key_event_state_t * state, unsigned char c, key_event_t * event);
 
 #endif /* HELIOS_SRC_USR_INCLUDE_KBD_H_ */
