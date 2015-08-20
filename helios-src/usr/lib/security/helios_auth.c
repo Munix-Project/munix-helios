@@ -1,5 +1,5 @@
 /*
- * heliosos_auth.c
+ * helios_auth.c
  *
  *  Created on: Aug 19, 2015
  *      Author: miguel
@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <pwd.h>
 #include <security/crypt/sha2.h>
+
 
 int helios_auth(char * user, char * pass) {
 	/* Generate SHA512 */

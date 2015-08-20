@@ -7,6 +7,7 @@ C_SRCS += \
 ../helios-src/bin/cat.c \
 ../helios-src/bin/init.c \
 ../helios-src/bin/login.c \
+../helios-src/bin/sayhello.c \
 ../helios-src/bin/sh.c \
 ../helios-src/bin/terminal.c \
 ../helios-src/bin/uname.c 
@@ -15,6 +16,7 @@ OBJS += \
 ./helios-src/bin/cat.o \
 ./helios-src/bin/init.o \
 ./helios-src/bin/login.o \
+./helios-src/bin/sayhello.o \
 ./helios-src/bin/sh.o \
 ./helios-src/bin/terminal.o \
 ./helios-src/bin/uname.o 
@@ -23,6 +25,7 @@ C_DEPS += \
 ./helios-src/bin/cat.d \
 ./helios-src/bin/init.d \
 ./helios-src/bin/login.d \
+./helios-src/bin/sayhello.d \
 ./helios-src/bin/sh.d \
 ./helios-src/bin/terminal.d \
 ./helios-src/bin/uname.d 

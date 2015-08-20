@@ -43,7 +43,7 @@ void sig_segv(int sig) {
 
 int main(int argc, char ** argv) {
 
-	printf("\n");
+	printf("\nSystem information:\e[41;1;33m\n");
 	system("uname -a");
 	printf("\n");
 
@@ -58,7 +58,7 @@ int main(int argc, char ** argv) {
 		char _hostname[256];
 		syscall_gethostname(_hostname);
 
-		printf("\e[36;47;1;7m%s login:\e[0m ", _hostname); fflush(stdout);
+		printf("\e[41;1;33m%s login:\e[0m ", _hostname); fflush(stdout);
 		char * r = fgets(username, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
@@ -68,7 +68,7 @@ int main(int argc, char ** argv) {
 		}
 		username[strlen(username)-1] = '\0';
 
-		printf("\e[36;47;1;7mpassword:\e[0m "); fflush(stdout);
+		printf("\e[41;1;33m  password:  \e[0m "); fflush(stdout);
 
 		/* Disable echo */
 		struct termios old, new;
