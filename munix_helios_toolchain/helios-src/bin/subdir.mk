@@ -5,6 +5,7 @@
 # Add inputs and outputs from these tool invocations to the build variables 
 C_SRCS += \
 ../helios-src/bin/cat.c \
+../helios-src/bin/echo.c \
 ../helios-src/bin/init.c \
 ../helios-src/bin/login.c \
 ../helios-src/bin/sayhello.c \
@@ -14,6 +15,7 @@ C_SRCS += \
 
 OBJS += \
 ./helios-src/bin/cat.o \
+./helios-src/bin/echo.o \
 ./helios-src/bin/init.o \
 ./helios-src/bin/login.o \
 ./helios-src/bin/sayhello.o \
@@ -23,6 +25,7 @@ OBJS += \
 
 C_DEPS += \
 ./helios-src/bin/cat.d \
+./helios-src/bin/echo.d \
 ./helios-src/bin/init.d \
 ./helios-src/bin/login.d \
 ./helios-src/bin/sayhello.d \
