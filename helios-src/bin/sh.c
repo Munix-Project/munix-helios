@@ -907,9 +907,17 @@ exit:
  */
 uint32_t shell_cmd_cd(int argc, char * argv[]) {
 	if (argc > 1) {
-		if (chdir(argv[1])) {
+		char * buff = malloc(sizeof(char) * 100);
+		strcpy(buff, argv[1]);
+
+		if(!strcmp(buff,"~")) /* Check if the user wants to go home */
+			strcpy(buff, getenv("HOME"));
+		if (chdir(buff)){
+			free(buff);
 			goto cd_error;
-		} /* else success */
+		}
+		/* else success */
+		free(buff);
 	} else /* argc < 2 */ {
 		char * home = getenv("HOME");
 		if (home) {
