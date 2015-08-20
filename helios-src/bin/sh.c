@@ -1032,6 +1032,7 @@ uint32_t shell_cmd_pwd(int argc, char * argv[]) {
 
 void install_commands() {
 	shell_install_command("cd",      shell_cmd_cd);
+	shell_install_command("chdir",   shell_cmd_cd);
 	shell_install_command("history", shell_cmd_history);
 	shell_install_command("export",  shell_cmd_export);
 	shell_install_command("test",    shell_cmd_test);
