@@ -43,9 +43,9 @@ void sig_segv(int sig) {
 
 int main(int argc, char ** argv) {
 
-	printf("\nSystem information:\e[41;1;33m\n");
+	printf("\nSystem information:\e[41;1;37m\n  ");
 	system("uname -a");
-	printf("\n");
+	printf("  \n");
 
 	signal(SIGINT, sig_pass);
 	signal(SIGWINCH, sig_pass);
@@ -58,7 +58,7 @@ int main(int argc, char ** argv) {
 		char _hostname[256];
 		syscall_gethostname(_hostname);
 
-		printf("\e[41;1;33m%s login:\e[0m ", _hostname); fflush(stdout);
+		printf("\e[41;1;37m%s login:\e[0m ", _hostname); fflush(stdout);
 		char * r = fgets(username, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
@@ -68,7 +68,7 @@ int main(int argc, char ** argv) {
 		}
 		username[strlen(username)-1] = '\0';
 
-		printf("\e[41;1;33m  password:  \e[0m "); fflush(stdout);
+		printf("\e[41;1;37m  password:  \e[0m "); fflush(stdout);
 
 		/* Disable echo */
 		struct termios old, new;
@@ -95,7 +95,7 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 
-		fprintf(stdout, "\e[37;1;42m\nLogin Successful!\n\e[0m"); fflush(stdout);
+		fprintf(stdout, "\e[32;1m\nLogin Successful!\e[37;1;40m\n\n--------------------------------------------------------------------------------\n\n\e[0m"); fflush(stdout);
 		system("cat /etc/motd");
 
 		pid_t pid = getpid();

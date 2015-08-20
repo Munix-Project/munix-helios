@@ -181,9 +181,9 @@ void draw_prompt(int ret) {
 
 	/* Format the date and time for prompt display */
 	char date_buffer[80];
-	strftime(date_buffer, 80, "%m/%d", timeinfo);
+	strftime(date_buffer, 80, "mon: %m day: %d", timeinfo);
 	char time_buffer[80];
-	strftime(time_buffer, 80, "%H:%M:%S", timeinfo);
+	strftime(time_buffer, 80, "@ %H:%M:%S h", timeinfo);
 
 	/* Print the working directory in there, too */
 	getcwd(cwd, 512);
@@ -199,15 +199,17 @@ void draw_prompt(int ret) {
 	}
 
 	/* Print the prompt. */
-	printf("\033]1;%s@%s:%s\007", username, _hostname, _cwd);
-	printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\033[38;5;221m%s\033[38;5;59m@\033[38;5;81m%s ",
-			date_buffer, time_buffer,
-			username, _hostname);
-	if (ret != 0) {
-		printf("\033[38;5;167m%d ", ret);
-	}
+	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s ", username, _hostname, _cwd);
+	printf("\e[s\e[34C\e[1A\e[0m[\e[31;1m%s %s\e[0m]\e[u", date_buffer, time_buffer);
+	/*printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\e[0m",
+			date_buffer, time_buffer);
+*/
+	if (ret != 0)
+		printf("\033[38;5;167mret: %d ", ret);
 
-	printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
+	//printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
+
+	printf("\e[0m");
 	fflush(stdout);
 }
 
