@@ -200,15 +200,9 @@ void draw_prompt(int ret) {
 
 	/* Print the prompt. */
 	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s ", username, _hostname, _cwd);
-	printf("\e[s\e[34C\e[1A\e[0m[\e[31;1m%s %s\e[0m]\e[u", date_buffer, time_buffer);
-	/*printf("\033[s\033[400C\033[16D\033[1m\033[38;5;59m[\033[38;5;173m%s \033[38;5;167m%s\033[38;5;59m]\033[u\e[0m",
-			date_buffer, time_buffer);
-*/
+	printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
 		printf("\033[38;5;167mret: %d ", ret);
-
-	//printf("\033[0m%s%s\033[0m ", _cwd, getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
-
 	printf("\e[0m");
 	fflush(stdout);
 }
@@ -1031,6 +1025,11 @@ uint32_t shell_cmd_set(int argc, char * argv[]) {
 	return 1;
 }
 
+uint32_t shell_cmd_pwd(int argc, char * argv[]) {
+	fprintf(stdout, "%s\n", cwd); fflush(stdout);
+	return 0;
+}
+
 void install_commands() {
 	shell_install_command("cd",      shell_cmd_cd);
 	shell_install_command("history", shell_cmd_history);
@@ -1038,4 +1037,5 @@ void install_commands() {
 	shell_install_command("test",    shell_cmd_test);
 	shell_install_command("exit",    shell_cmd_exit);
 	shell_install_command("set",     shell_cmd_set);
+	shell_install_command("pwd",	 shell_cmd_pwd);
 }
