@@ -220,11 +220,12 @@ void draw_prompt(int ret) {
 
 	/* Print the prompt. */
 	gethost(); /* Update host */
-	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s ", username, _hostname, _cwd);
+	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s", username, _hostname, _cwd);
 	if(show_time)
 		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
-		printf("\033[38;5;167mret: %d ", ret);
+		printf(" \e[0m[\033[38;5;167mret: %d\e[0m] ", ret);
+	printf("\033[0m%s\033[0m ", getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
 	printf("\e[0m");
 	fflush(stdout);
 }
@@ -662,7 +663,7 @@ int shell_exec(char * buffer, int buffer_size) {
 					if (!quoted && !backtick && !collected) {
 						collected = sprintf(buffer_, "%s", PIPE_TOKEN);
 						goto _new_arg;
-					}
+					} break;
 				default:
 					if (backtick) {
 						buffer_[collected] = '\\';
@@ -1055,18 +1056,6 @@ uint32_t shell_cmd_togtime(int argc, char * argv[]) {
 	return 0;
 }
 
-uint32_t shell_cmd_sh(int argc, char* argv[]) {
-	char buff[512];
-	memset(buff, 0, 512);
-	strcat(buff, "/bin/sh ");
-	for(int i=1;i<argc;i++){
-		strcat(buff, argv[i]);
-		strcat(buff, " ");
-	}
-	system(buff);
-	return 0;
-}
-
 void install_commands() {
 	shell_install_command("cd",      shell_cmd_cd);
 	shell_install_command("chdir",   shell_cmd_cd);
@@ -1077,6 +1066,5 @@ void install_commands() {
 	shell_install_command("set",     shell_cmd_set);
 	shell_install_command("pwd", 	 shell_cmd_pwd);
 	shell_install_command("togtime", shell_cmd_togtime);
-	shell_install_command("sh", 	 shell_cmd_sh); /* For some reason, sh is not being considered an executable */
 	/* TODO: Add command expr here */
 }
