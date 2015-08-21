@@ -10,3 +10,8 @@
 /hostname
 /ln
 /readlink
+/cpudet
+/free
+/ps
+/pstree
+/spawn
