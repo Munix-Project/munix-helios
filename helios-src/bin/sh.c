@@ -52,6 +52,8 @@ shell_command_t shell_pointers[SHELL_COMMANDS]; /* Command functions */
 /* This is the number of actual commands installed */
 uint32_t shell_commands_len = 0;
 
+uint8_t show_time = 1;
+
 /* We also support history through a circular buffer. */
 #define SHELL_HISTORY_ENTRIES 128
 char * shell_history[SHELL_HISTORY_ENTRIES];
@@ -219,7 +221,8 @@ void draw_prompt(int ret) {
 	/* Print the prompt. */
 	gethost(); /* Update host */
 	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s ", username, _hostname, _cwd);
-	printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
+	if(show_time)
+		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
 		printf("\033[38;5;167mret: %d ", ret);
 	printf("\e[0m");
@@ -1047,6 +1050,11 @@ uint32_t shell_cmd_pwd(int argc, char * argv[]) {
 	return 0;
 }
 
+uint32_t shell_cmd_togtime(int argc, char * argv[]) {
+	show_time = !show_time;
+	return 0;
+}
+
 uint32_t shell_cmd_sh(int argc, char* argv[]) {
 	char buff[512];
 	memset(buff, 0, 512);
@@ -1068,6 +1076,7 @@ void install_commands() {
 	shell_install_command("exit",    shell_cmd_exit);
 	shell_install_command("set",     shell_cmd_set);
 	shell_install_command("pwd", 	 shell_cmd_pwd);
+	shell_install_command("togtime", shell_cmd_togtime);
 	shell_install_command("sh", 	 shell_cmd_sh); /* For some reason, sh is not being considered an executable */
 	/* TODO: Add command expr here */
 }
