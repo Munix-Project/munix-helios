@@ -20,6 +20,7 @@ C_SRCS += \
 ../helios-src/bin/mkdir.c \
 ../helios-src/bin/mount.c \
 ../helios-src/bin/mv.c \
+../helios-src/bin/pkill.c \
 ../helios-src/bin/ps.c \
 ../helios-src/bin/pstree.c \
 ../helios-src/bin/readlink.c \
@@ -58,6 +59,7 @@ OBJS += \
 ./helios-src/bin/mkdir.o \
 ./helios-src/bin/mount.o \
 ./helios-src/bin/mv.o \
+./helios-src/bin/pkill.o \
 ./helios-src/bin/ps.o \
 ./helios-src/bin/pstree.o \
 ./helios-src/bin/readlink.o \
@@ -96,6 +98,7 @@ C_DEPS += \
 ./helios-src/bin/mkdir.d \
 ./helios-src/bin/mount.d \
 ./helios-src/bin/mv.d \
+./helios-src/bin/pkill.d \
 ./helios-src/bin/ps.d \
 ./helios-src/bin/pstree.d \
 ./helios-src/bin/readlink.d \
