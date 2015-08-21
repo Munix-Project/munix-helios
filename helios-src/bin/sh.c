@@ -12,6 +12,9 @@
  * programs.
  */
 
+/* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */
+/* TODO: Add 'sub-function' for shell for when the user presses tab while typing a command and a list of files show up */
+
 #define _XOPEN_SOURCE
 
 #include <stdio.h>
@@ -33,6 +36,8 @@
 #include <list.h>
 #include <kbd.h>
 #include <rline.h>
+
+#define OS_HOSTNAME "helios"
 
 #define PIPE_TOKEN "\xFF\xFFPIPE\xFF\xFF"
 
@@ -161,14 +166,27 @@ void getuser() {
 	}
 }
 
-/* function to update the cached hostname */
 void gethost() {
-	struct utsname buf;
+	FILE* f_hostname = fopen("/etc/hostname","r");
 
-	uname(&buf);
+	/* Clear the hostname first: */
+	memset(_hostname, 0, 256);
 
-	int len = strlen(buf.nodename);
-	memcpy(_hostname, buf.nodename, len+1);
+	/* And update it */
+	if(!f_hostname){
+		syscall_sethostname(OS_HOSTNAME);
+		memcpy(_hostname, OS_HOSTNAME, strlen(OS_HOSTNAME));
+	}
+	else {
+		char buff[256];
+		fgets(buff, 255, f_hostname);
+		if(buff[strlen(buff)-1] == '\n')
+			buff[strlen(buff)-1] = '\0';
+		memcpy(_hostname, buff, strlen(buff));
+		syscall_sethostname(buff);
+		setenv("HOST", buff, 1);
+		fclose(f_hostname);
+	}
 }
 
 /* Draw the user prompt */
@@ -199,6 +217,7 @@ void draw_prompt(int ret) {
 	}
 
 	/* Print the prompt. */
+	gethost(); /* Update host */
 	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s ", username, _hostname, _cwd);
 	printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
@@ -553,7 +572,6 @@ int shell_exec(char * buffer, int buffer_size) {
 	list_t * args = list_create();
 
 	while (1) {
-
 		char * p = buffer;
 
 		while (*p) {
@@ -833,6 +851,7 @@ void sort_commands() {
 
 void show_version(void) {
 	printf("esh 0.11.0 - experimental shell\n");
+	fflush(stdout);
 }
 
 void show_usage(int argc, char * argv[]) {
@@ -846,14 +865,11 @@ void show_usage(int argc, char * argv[]) {
 			" -v     \033[3mshow version information\033[0m\n"
 			" -?     \033[3mshow this help text\033[0m\n"
 			"\n", argv[0]);
+	fflush(stdout);
 }
 
-
 int main(int argc, char ** argv) {
-
-	int  nowait = 0;
-	int  free_cmd = 0;
-	int  last_ret = 0;
+	int last_ret = 0;
 
 	pid = getpid();
 
@@ -868,7 +884,7 @@ int main(int argc, char ** argv) {
 	sort_commands();
 
 	if (argc > 1) {
-		int index, c;
+		int c;
 		while ((c = getopt(argc, argv, "c:v?")) != -1) {
 			switch (c) {
 				case 'c':
@@ -894,11 +910,8 @@ int main(int argc, char ** argv) {
 		buffer_size = read_entry(buffer);
 		last_ret = shell_exec(buffer, buffer_size);
 		shell_scroll = 0;
-
 	}
-
 exit:
-
 	return 0;
 }
 
@@ -942,33 +955,29 @@ cd_error:
  * history
  */
 uint32_t shell_cmd_history(int argc, char * argv[]) {
-	for (int i = 0; i < shell_history_count; ++i) {
+	for (int i = 0; i < shell_history_count; ++i)
 		printf("%d\t%s\n", i + 1, shell_history_get(i));
-	}
 	return 0;
 }
 
 uint32_t shell_cmd_test(int argc, char * argv[]) {
 	printf("%d arguments.\n", argc);
-	for (int i = 0; i < argc; ++i) {
+	for (int i = 0; i < argc; ++i)
 		printf("%d -> %s\n", i, argv[i]);
-	}
 	return argc;
 }
 
 uint32_t shell_cmd_export(int argc, char * argv[]) {
-	if (argc > 1) {
+	if (argc > 1)
 		putenv(argv[1]);
-	}
 	return 0;
 }
 
 uint32_t shell_cmd_exit(int argc, char * argv[]) {
-	if (argc > 1) {
+	if (argc > 1)
 		exit(atoi(argv[1]));
-	} else {
+	else
 		exit(0);
-	}
 	return -1;
 }
 
@@ -1038,6 +1047,18 @@ uint32_t shell_cmd_pwd(int argc, char * argv[]) {
 	return 0;
 }
 
+uint32_t shell_cmd_sh(int argc, char* argv[]) {
+	char buff[512];
+	memset(buff, 0, 512);
+	strcat(buff, "/bin/sh ");
+	for(int i=1;i<argc;i++){
+		strcat(buff, argv[i]);
+		strcat(buff, " ");
+	}
+	system(buff);
+	return 0;
+}
+
 void install_commands() {
 	shell_install_command("cd",      shell_cmd_cd);
 	shell_install_command("chdir",   shell_cmd_cd);
@@ -1046,5 +1067,7 @@ void install_commands() {
 	shell_install_command("test",    shell_cmd_test);
 	shell_install_command("exit",    shell_cmd_exit);
 	shell_install_command("set",     shell_cmd_set);
-	shell_install_command("pwd",	 shell_cmd_pwd);
+	shell_install_command("pwd", 	 shell_cmd_pwd);
+	shell_install_command("sh", 	 shell_cmd_sh); /* For some reason, sh is not being considered an executable */
+	/* TODO: Add command expr here */
 }

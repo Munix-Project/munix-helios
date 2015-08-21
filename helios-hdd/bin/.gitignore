@@ -6,3 +6,7 @@
 /ls
 /mkdir
 /mv
+/env
+/hostname
+/ln
+/readlink

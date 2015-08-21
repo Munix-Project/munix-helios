@@ -1,0 +1,54 @@
+/*
+ * ln.c
+ *
+ *  Created on: Aug 21, 2015
+ *      Author: miguel
+ */
+
+#include <stdio.h>
+#include <stdint.h>
+#include <stdlib.h>
+#include <unistd.h>
+
+static const char usage[] = "Usage: %s [-s] TARGET NAME\n"
+							"    -s: Create a symbolic link.\n"
+							"    -h: Print this help message and exit.\n";
+
+int main(int argc, char * argv[]) {
+	uint8_t symlink_flag = 0;
+
+	int c;
+	while ((c = getopt(argc, argv, "sh")) != -1) {
+		switch (c) {
+			case 's':
+				symlink_flag = 1;
+				break;
+			case 'h':
+				fprintf(stdout, usage, argv[0]);
+				exit(EXIT_SUCCESS);
+			default:
+				fprintf(stderr, usage, argv[0]);
+				exit(EXIT_FAILURE);
+		}
+	}
+	if (argc - optind < 2) {
+		fprintf(stderr, usage, argv[0]);
+		exit(EXIT_FAILURE);
+	}
+	char * target = argv[optind];
+	char * name = argv[optind + 1];
+
+	if (symlink_flag) {
+		if(symlink(target, name) < 0) {
+			perror("symlink");
+			exit(EXIT_FAILURE);
+		}
+		exit(EXIT_SUCCESS);
+	}
+
+	if (link(target, name) < 0) {
+		perror("link");
+		exit(EXIT_FAILURE);
+	}
+	exit(EXIT_SUCCESS);
+}
