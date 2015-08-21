@@ -1211,7 +1211,6 @@ int main(int argc, char ** argv) {
 	terminal = fdopen(fd_slave, "w");
 
 	reinit(0);
-
 	fflush(stdin);
 
 	int pid = getpid();
@@ -1224,12 +1223,12 @@ int main(int argc, char ** argv) {
 
 		if (argv[optind] != NULL) {
 			char * tokens[] = {argv[optind], NULL};
-			int i = execvp(tokens[0], tokens);
+			execvp(tokens[0], tokens);
 			fprintf(stderr, "Failed to launch requested startup application.\n");
 		} else {
 			if (_login_shell) {
-				char * tokens[] = {"/bin/login",NULL};
-				int i = execvp(tokens[0], tokens);
+				char * tokens[] = {"/bin/login", NULL};
+				execvp(tokens[0], tokens);
 			} else {
 				char * shell = getenv("SHELL");
 				if (!shell) shell = "/bin/sh"; /* fallback */

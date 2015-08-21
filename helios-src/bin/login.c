@@ -42,10 +42,10 @@ void sig_segv(int sig) {
 }
 
 int main(int argc, char ** argv) {
-
-	printf("\nSystem information:\e[41;1;37m\n  ");
 	system("uname -a");
-	printf("  \n");
+	system("cat /etc/intro");
+	fflush(stdout);
+	printf("\n");
 
 	signal(SIGINT, sig_pass);
 	signal(SIGWINCH, sig_pass);
