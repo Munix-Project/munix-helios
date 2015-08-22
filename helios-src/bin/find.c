@@ -139,32 +139,40 @@ void find(callback_dat dat){
 
 	/* Decide to whether to show data or not: */
 	if(!byexec && !byname && !bysize && !bytype){ /* All conditions are off, show all matches */
-		printf("%s\n", fullpath);
-		update_stats(dat);
+		goto match_found;
 	}
 	else {
-		/* Filter it */
 		/* TODO: Add regex to the name matching */
+
+		/* Filter it */
 		int trycount = 1;
 		if(bytype) trycount = strlen(bytype_str);
 
 		for(int i=0; i< trycount; i++) /* Try for all options given in type */
 		{
-			if((byexec && type==TYPE_EXEC) ||
-			   (byname && !strcmp(byname_str, name)) ||
-			   (bysize && bysize_int>=size) ||
-			   (bytype && bytype_str[i]==type))
-			{
-				printf("%s\n", fullpath);
-				update_stats(dat);
-				if(delete_files) {
-					/* TODO, don't want to be deleting things just yet */
-				}
-			}
+			uint8_t match_types = ((byexec && type==TYPE_EXEC) || (bysize && bysize_int>=size) || (bytype && bytype_str[i]==type));
+			uint8_t match_name = (byname && !strcmp(byname_str, name));
+
+			/* Cover all possibilities: */
+			if(match_types && !byname)
+				goto match_found;
+			if(match_name && !bytype)
+				goto match_found;
+			if(match_name && match_types)
+				goto match_found;
 		}
 	}
 
-	fflush(stdout);
+	/* No match found */
+	return;
+	match_found:
+		/* Match found */
+		printf("%s\n", fullpath);
+		update_stats(dat);
+		if(delete_files) {
+			/* TODO, don't want to be deleting things just yet */
+		}
+		fflush(stdout);
 }
 
 void usage(char * argv) {
@@ -211,11 +219,19 @@ int main(int argc, char ** argv) {
 			case '?': usage(argv[0]); exit(EXIT_SUCCESS); break;
 			}
 		}
+		if(!strcmp(toppath,".")) {
+			/* Always . on the current dir */
+			callback_dat dat = { .fullpath = ".", .type = TYPE_DIR, .name="." };
+			find(dat);
+		}
 	} else {
 		/* Always . on the current dir */
 		callback_dat dat = { .fullpath = ".", .type = TYPE_DIR, .name="." };
 		find(dat);
 	}
+	if(!strcmp(toppath,"~"))
+		toppath = getenv("HOME");
+
 	crawl(find, toppath, 0);
 	printf("\n%d matches / %d files  / %d folders found\n", matches_found, files_found, matches_found - files_found);
 	return 0;
