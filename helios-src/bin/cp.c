@@ -42,7 +42,7 @@ int main(int argc, char ** argv) {
 	FILE * fin, * fout;
 
 	if(argc < 3) {
-		fprintf(stderr, "usage: %s [source] [destination] ", argv[0]);
+		fprintf(stderr, "usage: %s [source] [destination]\n", argv[0]);
 		return 1;
 	}
 
