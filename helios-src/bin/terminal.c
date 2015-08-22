@@ -6,6 +6,9 @@
  *  Credits: this file has been created using toaruos
  */
 #include <terminal/terminal.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
 
 /************** SECTION 1: ANSI *********************/
 
@@ -18,7 +21,6 @@ static void _spin_unlock(volatile int * foo) { return; }
 # define rgba(r,g,b,a) (((uint32_t)a * 0x1000000) + ((uint32_t)r * 0x10000) + ((uint32_t)g * 0x100) + ((uint32_t)b * 0x1))
 # define rgb(r,g,b) rgba(r,g,b,0xFF)
 #else
-#include <stdlib.h>
 #include <math.h>
 #include <syscall.h>
 #include <spinlock.h>
@@ -28,6 +30,8 @@ static void _spin_unlock(volatile int * foo) { return; }
 #endif
 
 #define MAX_ARGS 1024
+
+#define TERM_ENV "TERM=munix"
 
 static wchar_t box_chars[] = L"▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥";
 
@@ -91,7 +95,6 @@ static int to_eight(uint32_t codepoint, char * out) {
 	return strlen(out);
 }
 
-
 static void _ansi_put(term_state_t * s, char c) {
 	term_callbacks_t * callbacks = s->callbacks;
 	switch (s->escape) {
@@ -151,7 +154,7 @@ static void _ansi_put(term_state_t * s, char c) {
 				char * argv[MAX_ARGS]; /* escape arguments */
 				/* Get rid of the front of the buffer */
 				strtok_r(s->buffer,"[",&save);
-				pch = strtok_r(NULL,";",&save);
+				pch = (char*) strtok_r(NULL,";",&save);
 				/* argc = Number of arguments, obviously */
 				int argc = 0;
 				while (pch != NULL) {
@@ -325,59 +328,52 @@ static void _ansi_put(term_state_t * s, char c) {
 					case ANSI_CUF:
 						{
 							int i = 1;
-							if (argc) {
+							if (argc)
 								i = atoi(argv[0]);
-							}
 							callbacks->set_csr(min(callbacks->get_csr_x() + i, s->width - 1), callbacks->get_csr_y());
 						}
 						break;
 					case ANSI_CUU:
 						{
 							int i = 1;
-							if (argc) {
+							if (argc)
 								i = atoi(argv[0]);
-							}
 							callbacks->set_csr(callbacks->get_csr_x(), max(callbacks->get_csr_y() - i, 0));
 						}
 						break;
 					case ANSI_CUD:
 						{
 							int i = 1;
-							if (argc) {
+							if (argc)
 								i = atoi(argv[0]);
-							}
 							callbacks->set_csr(callbacks->get_csr_x(), min(callbacks->get_csr_y() + i, s->height - 1));
 						}
 						break;
 					case ANSI_CUB:
 						{
 							int i = 1;
-							if (argc) {
+							if (argc)
 								i = atoi(argv[0]);
-							}
 							callbacks->set_csr(max(callbacks->get_csr_x() - i,0), callbacks->get_csr_y());
 						}
 						break;
 					case ANSI_CHA:
-						if (argc < 1) {
+						if (argc < 1)
 							callbacks->set_csr(0,callbacks->get_csr_y());
-						} else {
+						else
 							callbacks->set_csr(min(max(atoi(argv[0]), 1), s->width) - 1, callbacks->get_csr_y());
-						}
 						break;
 					case ANSI_CUP:
-						if (argc < 2) {
+						if (argc < 2)
 							callbacks->set_csr(0,0);
-						} else {
+						else
 							callbacks->set_csr(min(max(atoi(argv[1]), 1), s->width) - 1, min(max(atoi(argv[0]), 1), s->height) - 1);
-						}
 						break;
 					case ANSI_ED:
-						if (argc < 1) {
+						if (argc < 1)
 							callbacks->cls(0);
-						} else {
+						else
 							callbacks->cls(atoi(argv[0]));
-						}
 						break;
 					case ANSI_EL:
 						{
@@ -395,9 +391,8 @@ static void _ansi_put(term_state_t * s, char c) {
 								x = 0;
 								y = s->width;
 							}
-							for (int i = x; i < y; ++i) {
+							for (int i = x; i < y; ++i)
 								callbacks->set_cell(i, callbacks->get_csr_y(), ' ');
-							}
 						}
 						break;
 					case ANSI_DSR:
@@ -410,49 +405,43 @@ static void _ansi_put(term_state_t * s, char c) {
 					case ANSI_SU:
 						{
 							int how_many = 1;
-							if (argc > 0) {
+							if (argc > 0)
 								how_many = atoi(argv[0]);
-							}
 							callbacks->scroll(how_many);
 						}
 						break;
 					case ANSI_SD:
 						{
 							int how_many = 1;
-							if (argc > 0) {
+							if (argc > 0)
 								how_many = atoi(argv[0]);
-							}
 							callbacks->scroll(-how_many);
 						}
 						break;
 					case 'X':
 						{
 							int how_many = 1;
-							if (argc > 0) {
+							if (argc > 0)
 								how_many = atoi(argv[0]);
-							}
-							for (int i = 0; i < how_many; ++i) {
+							for (int i = 0; i < how_many; ++i)
 								callbacks->writer(' ');
-							}
 						}
 						break;
 					case 'd':
-						if (argc < 1) {
+						if (argc < 1)
 							callbacks->set_csr(callbacks->get_csr_x(), 0);
-						} else {
+						else
 							callbacks->set_csr(callbacks->get_csr_x(), atoi(argv[0]) - 1);
-						}
 						break;
 					default:
 						/* Meh */
 						break;
 				}
 				/* Set the states */
-				if (s->flags & ANSI_BOLD && s->fg < 9) {
+				if ((s->flags & ANSI_BOLD) && (s->fg < 9))
 					callbacks->set_color(s->fg % 8 + 8, s->bg);
-				} else {
+				else
 					callbacks->set_color(s->fg, s->bg);
-				}
 				/* Clear out the buffer */
 				s->buflen = 0;
 				s->escape = 0;
@@ -547,7 +536,6 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 }
 /************** SECTION 2: TERMINAL "DRIVER" FOR ANSI *********************/
 #include <syscall.h>
-#include <string.h>
 #include <signal.h>
 #include <time.h>
 #include <fcntl.h>
@@ -593,8 +581,6 @@ void term_redraw_cursor();
 static unsigned int timer_tick = 0;
 
 void term_clear();
-
-void dump_buffer();
 
 wchar_t box_chars_in[] = L"▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥▄";
 wchar_t box_chars_out[] =  {176,0,0,0,0,248,241,0,0,217,191,218,192,197,196,196,196,196,196,195,180,193,194,179,243,242,220};
@@ -647,7 +633,7 @@ static int best_match(uint32_t a) {
 	int best_distance = INT32_MAX;
 	int best_index = 0;
 	for (int j = 0; j < 16; ++j) {
-		if (is_gray(a) && !is_gray(vga_base_colors[j]));
+		if (is_gray(a) && !is_gray(vga_base_colors[j])){}
 		int distance = color_distance(a, vga_base_colors[j]);
 		if (distance < best_distance) {
 			best_index = j;
@@ -702,30 +688,21 @@ uint32_t ununicode(uint32_t c) {
 	return 4;
 }
 
-void
-term_write_char(
-		uint32_t val,
-		uint16_t x,
-		uint16_t y,
-		uint32_t fg,
-		uint32_t bg,
-		uint8_t flags
-		) {
-	if (val > 128) val = ununicode(val);
-	if (fg > 256) {
+void term_write_char(uint32_t val, uint16_t x, uint16_t y, uint32_t fg, uint32_t bg, uint8_t flags) {
+	if (val > 128)
+		val = ununicode(val);
+	if (fg > 256)
 		fg = best_match(fg);
-	}
-	if (bg > 256) {
+	if (bg > 256)
 		bg = best_match(bg);
-	}
-	if (fg > 16) {
+	if (fg > 16)
 		fg = vga_colors[fg];
-	}
-	if (bg > 16) {
+	if (bg > 16)
 		bg = vga_colors[bg];
-	}
-	if (fg == 16) fg = 0;
-	if (bg == 16) bg = 0;
+	if (fg == 16)
+		fg = 0;
+	if (bg == 16)
+		bg = 0;
 	placech(val, x, y, (vga_to_ansi[fg] & 0xF) | (vga_to_ansi[bg] << 4));
 }
 
@@ -741,35 +718,19 @@ static void cell_set(uint16_t x, uint16_t y, uint32_t c, uint32_t fg, uint32_t b
 static void cell_redraw(uint16_t x, uint16_t y) {
 	if (x >= term_width || y >= term_height) return;
 	term_cell_t * cell = (term_cell_t *)((uintptr_t)term_buffer + (y * term_width + x) * sizeof(term_cell_t));
-	if (((uint32_t *)cell)[0] == 0x00000000) {
+	if (((uint32_t *)cell)[0] == 0x00000000)
 		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_FG, TERM_DEFAULT_BG, TERM_DEFAULT_FLAGS);
-	} else {
+	else
 		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flags);
-	}
 }
 
 static void cell_redraw_inverted(uint16_t x, uint16_t y) {
 	if (x >= term_width || y >= term_height) return;
 	term_cell_t * cell = (term_cell_t *)((uintptr_t)term_buffer + (y * term_width + x) * sizeof(term_cell_t));
-	if (((uint32_t *)cell)[0] == 0x00000000) {
+	if (((uint32_t *)cell)[0] == 0x00000000)
 		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_BG, TERM_DEFAULT_FG, TERM_DEFAULT_FLAGS | ANSI_SPECBG);
-	} else {
+	else
 		term_write_char(cell->c, x * char_width, y * char_height, cell->bg, cell->fg, cell->flags | ANSI_SPECBG);
-	}
-}
-
-static void cell_redraw_box(uint16_t x, uint16_t y) {
-	if (x >= term_width || y >= term_height) return;
-	term_cell_t * cell = (term_cell_t *)((uintptr_t)term_buffer + (y * term_width + x) * sizeof(term_cell_t));
-	if (((uint32_t *)cell)[0] == 0x00000000) {
-		term_write_char(' ', x * char_width, y * char_height, TERM_DEFAULT_FG, TERM_DEFAULT_BG, TERM_DEFAULT_FLAGS | ANSI_BORDER);
-	} else {
-		term_write_char(cell->c, x * char_width, y * char_height, cell->fg, cell->bg, cell->flags | ANSI_BORDER);
-	}
-}
-
-void outb(unsigned char _data, unsigned short _port) {
-	__asm__ __volatile__ ("outb %1, %0" : : "dN" (_port), "a" (_data));
 }
 
 void render_cursor() {
@@ -783,11 +744,9 @@ void draw_cursor() {
 }
 
 void term_redraw_all() {
-	for (uint16_t y = 0; y < term_height; ++y) {
-		for (uint16_t x = 0; x < term_width; ++x) {
+	for (uint16_t y = 0; y < term_height; ++y)
+		for (uint16_t x = 0; x < term_width; ++x)
 			cell_redraw(x,y);
-		}
-	}
 }
 
 void term_scroll(int how_much) {
@@ -795,19 +754,17 @@ void term_scroll(int how_much) {
 		term_clear();
 		return;
 	}
-	if (how_much == 0) {
-		return;
-	}
+
+	if (how_much == 0) return;
 	if (how_much > 0) {
 		/* Shift terminal cells one row up */
 		memmove(term_buffer, (void *)((uintptr_t)term_buffer + sizeof(term_cell_t) * term_width), sizeof(term_cell_t) * term_width * (term_height - how_much));
 		/* Reset the "new" row to clean cells */
 		memset((void *)((uintptr_t)term_buffer + sizeof(term_cell_t) * term_width * (term_height - how_much)), 0x0, sizeof(term_cell_t) * term_width * how_much);
-		for (int i = 0; i < how_much; ++i) {
-			for (uint16_t x = 0; x < term_width; ++x) {
+		for (int i = 0; i < how_much; ++i)
+			for (uint16_t x = 0; x < term_width; ++x)
 				cell_set(x,term_height - how_much,' ', current_fg, current_bg, ansi_state->flags);
-			}
-		}
+
 		term_redraw_all();
 	} else {
 		how_much = -how_much;
@@ -865,9 +822,8 @@ void term_write(char c) {
 			term_redraw_all();
 #endif
 		} else if (c == '\b') {
-			if (csr_x > 0) {
+			if (csr_x > 0)
 				--csr_x;
-			}
 			cell_redraw(csr_x, csr_y);
 			draw_cursor();
 		} else if (c == '\t') {
@@ -880,9 +836,8 @@ void term_write(char c) {
 				csr_x = 0;
 				++csr_y;
 			}
-			if (wide) {
+			if (wide)
 				flags = flags | ANSI_WIDE;
-			}
 			cell_set(csr_x,csr_y, codepoint, current_fg, current_bg, flags);
 			cell_redraw(csr_x,csr_y);
 			csr_x++;
@@ -899,26 +854,22 @@ void term_write(char c) {
 	draw_cursor();
 }
 
-void
-term_set_csr(int x, int y) {
+void term_set_csr(int x, int y) {
 	cell_redraw(csr_x,csr_y);
 	csr_x = x;
 	csr_y = y;
 	draw_cursor();
 }
 
-int
-term_get_csr_x() {
+int term_get_csr_x() {
 	return csr_x;
 }
 
-int
-term_get_csr_y() {
+int term_get_csr_y() {
 	return csr_y;
 }
 
-void
-term_set_csr_show(uint8_t on) {
+void term_set_csr_show(uint8_t on) {
 	cursor_on = on;
 }
 
@@ -928,23 +879,20 @@ void term_set_colors(uint32_t fg, uint32_t bg) {
 }
 
 void term_redraw_cursor() {
-	if (term_buffer) {
+	if (term_buffer)
 		draw_cursor();
-	}
 }
 
 void flip_cursor() {
 	static uint8_t cursor_flipped = 0;
-	if (cursor_flipped) {
+	if (cursor_flipped)
 		cell_redraw(csr_x, csr_y);
-	} else {
+	else
 		render_cursor();
-	}
 	cursor_flipped = 1 - cursor_flipped;
 }
 
-void
-term_set_cell(int x, int y, uint32_t c) {
+void term_set_cell(int x, int y, uint32_t c) {
 	cell_set(x, y, c, current_fg, current_bg, ansi_state->flags);
 	cell_redraw(x, y);
 }
@@ -962,23 +910,20 @@ void term_clear(int i) {
 		memset((void *)term_buffer, 0x00, term_width * term_height * sizeof(term_cell_t));
 		term_redraw_all();
 	} else if (i == 0) {
-		for (int x = csr_x; x < term_width; ++x) {
+		for (int x = csr_x; x < term_width; ++x)
 			term_set_cell(x, csr_y, ' ');
-		}
-		for (int y = csr_y + 1; y < term_height; ++y) {
-			for (int x = 0; x < term_width; ++x) {
+
+		for (int y = csr_y + 1; y < term_height; ++y)
+			for (int x = 0; x < term_width; ++x)
 				term_set_cell(x, y, ' ');
-			}
-		}
+
 	} else if (i == 1) {
-		for (int y = 0; y < csr_y; ++y) {
-			for (int x = 0; x < term_width; ++x) {
+		for (int y = 0; y < csr_y; ++y)
+			for (int x = 0; x < term_width; ++x)
 				term_set_cell(x, y, ' ');
-			}
-		}
-		for (int x = 0; x < csr_x; ++x) {
+
+		for (int x = 0; x < csr_x; ++x)
 			term_set_cell(x, csr_y, ' ');
-		}
 	}
 }
 
@@ -1003,9 +948,8 @@ void handle_input_s(char * c) {
 
 void key_event(int ret, key_event_t * event) {
 	if (ret) {
-		if (event->modifiers & KEY_MOD_LEFT_ALT || event->modifiers & KEY_MOD_RIGHT_ALT) {
+		if ((event->modifiers & KEY_MOD_LEFT_ALT) || (event->modifiers & KEY_MOD_RIGHT_ALT))
 			handle_input('\033');
-		}
 		handle_input(event->key);
 	} else {
 		if (event->action == KEY_ACTION_UP) return;
@@ -1044,9 +988,7 @@ void key_event(int ret, key_event_t * event) {
 				handle_input_s("\033[23~");
 				break;
 			case KEY_F12:
-				/* XXX This is for testing only */
-				handle_input_s("テスト");
-				//handle_input_s("\033[24~");
+				handle_input_s("\033[24~");
 				break;
 			case KEY_ARROW_UP:
 				handle_input_s("\033[A");
@@ -1078,8 +1020,9 @@ void * wait_for_exit(void * garbage) {
 	/* Clean up */
 	exit_application = 1;
 	/* Exit */
-	char exit_message[] = "[Process terminated]\n";
+	char exit_message[] = "[Process 'terminal' terminated]\n";
 	write(fd_slave, exit_message, sizeof(exit_message));
+	return NULL;
 }
 
 void usage(char * argv[]) {
@@ -1132,10 +1075,8 @@ void reinit(int send_sig) {
 	term_redraw_all();
 }
 
-
-
 void * handle_incoming(void * garbage) {
-	int kfd = open("/dev/kbd", O_RDONLY);
+	int kbd = open("/dev/kbd", O_RDONLY);
 	key_event_t event;
 	char c;
 
@@ -1143,19 +1084,16 @@ void * handle_incoming(void * garbage) {
 
 	/* Prune any keyboard input we got before the terminal started. */
 	struct stat s;
-	fstat(kfd, &s);
+	fstat(kbd, &s);
 	for (int i = 0; i < s.st_size; i++) {
 		char tmp[1];
-		read(kfd, tmp, 1);
+		read(kbd, tmp, 1);
 	}
 
-	while (!exit_application) {
-		int r = read(kfd, &c, 1);
-		if (r > 0) {
-			int ret = kbd_scancode(&kbd_state, c, &event);
-			key_event(ret, &event);
-		}
-	}
+	while (!exit_application)
+		if (read(kbd, &c, 1) > 0)
+			key_event(kbd_scancode(&kbd_state, c, &event), &event);
+
 	pthread_exit(0);
 }
 
@@ -1171,6 +1109,17 @@ void * blink_cursor(void * garbage) {
 	pthread_exit(0);
 }
 
+void outb(uint16_t port, uint16_t data) {
+	__asm__ __volatile__("outb %1, %0" : : "dN" (port), "a" (data));
+}
+
+static void hide_textmode_cursor() {
+	outb(0x3D4, 14);
+	outb(0x3D5, 0xFF);
+	outb(0x3D4, 15);
+	outb(0x3D5, 0xFF);
+}
+
 int main(int argc, char ** argv) {
 
 	_login_shell = 0;
@@ -1184,11 +1133,8 @@ int main(int argc, char ** argv) {
 	/* Read some arguments */
 	int index, c;
 	while ((c = getopt_long(argc, argv, "hl", long_opts, &index)) != -1) {
-		if (!c) {
-			if (long_opts[index].flag == 0) {
-				c = long_opts[index].val;
-			}
-		}
+		if (!c && long_opts[index].flag == 0)
+			c = long_opts[index].val;
 		switch (c) {
 			case 'l':
 				_login_shell = 1;
@@ -1204,11 +1150,13 @@ int main(int argc, char ** argv) {
 		}
 	}
 
-	putenv("TERM=munix");
+	hide_textmode_cursor();
+
+	putenv(TERM_ENV);
 
 	syscall_openpty(&fd_master, &fd_slave, NULL, NULL, NULL);
 
-	terminal = fdopen(fd_slave, "w");
+	terminal = (FILE*)fdopen(fd_slave, "w");
 
 	reinit(0);
 	fflush(stdin);
@@ -1233,7 +1181,7 @@ int main(int argc, char ** argv) {
 				char * shell = getenv("SHELL");
 				if (!shell) shell = "/bin/sh"; /* fallback */
 				char * tokens[] = {shell,NULL};
-				int i = execvp(tokens[0], tokens);
+				execvp(tokens[0], tokens);
 			}
 		}
 
@@ -1241,7 +1189,6 @@ int main(int argc, char ** argv) {
 
 		return 1;
 	} else {
-
 		child_pid = f;
 
 		pthread_t wait_for_exit_thread;
@@ -1256,12 +1203,10 @@ int main(int argc, char ** argv) {
 		unsigned char buf[1024];
 		while (!exit_application) {
 			int r = read(fd_master, buf, 1024);
-			for (uint32_t i = 0; i < r; ++i) {
+			for (uint32_t i = 0; i < r; ++i)
 				ansi_put(ansi_state, buf[i]);
-			}
 		}
 
 	}
-
 	return 0;
 }

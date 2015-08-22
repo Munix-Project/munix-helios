@@ -75,9 +75,8 @@ static int filecmp(const void * c1, const void * c2) {
 }
 
 static int filecmp_notypesort(const void * c1, const void * c2) {
-	const struct file_t * d1 = *(const struct tfile **)c1;
-	const struct file_t * d2 = *(const struct tfile **)c2;
-
+	const struct file_t * d1 = *(const struct file_t **)c1;
+	const struct file_t * d2 = *(const struct file_t **)c2;
 	return strcmp(d1->fname, d2->fname);
 }
 
@@ -97,12 +96,12 @@ static int print_usr(char * _out, int uid) {
 static int print_human_readable_size(char * _out, size_t s) {
 	if (s >= 1<<20) {
 		size_t t = s / (1 << 20);
-		return sprintf(_out, "%d.%1dM", t, (s - t * (1 << 20)) / ((1 << 20) / 10));
+		return sprintf(_out, "%d.%1dM", (int)t, (int)(s - t * (1 << 20)) / ((1 << 20) / 10));
 	} else if (s >= 1<<10) {
 		size_t t = s / (1 << 10);
-		return sprintf(_out, "%d.%1dK", t, (s - t * (1 << 10)) / ((1 << 10) / 10));
+		return sprintf(_out, "%d.%1dK", (int)t, (int)(s - t * (1 << 10)) / ((1 << 10) / 10));
 	} else {
-		return sprintf(_out, "%d", s);
+		return sprintf(_out, "%d", (int)s);
 	}
 	return 0;
 }
@@ -155,7 +154,7 @@ static void print_entry_long(int * widths, struct file_t * file) {
 		print_human_readable_size(tmp, file->statbuf.st_size);
 		printf("%*s ", widths[3], tmp);
 	} else {
-		printf("%*d ", widths[3], file->statbuf.st_size);
+		printf("%*d ", widths[3], (int)file->statbuf.st_size);
 	}
 
 	char time_buf[80];
@@ -235,7 +234,7 @@ static int display_dir(char * path) {
 		/* Grab node (if not hidden or not forcing it to show hidden): */
 		if(fl_show_hidden || (dire->d_name[0] != '.')) {
 			struct file_t * f = malloc(sizeof(struct file_t));
-			f->fname = strdup(dire->d_name);
+			f->fname = (char*) strdup(dire->d_name);
 
 			char tmp[strlen(path) + strlen(dire->d_name) + 1];
 			sprintf(tmp, "%s/%s", path, dire->d_name);
@@ -317,7 +316,7 @@ static void update_col_widths(int * widths, struct file_t * file) {
 	if (fl_human_readable)
 		n = print_human_readable_size(tmp, file->statbuf.st_size);
 	else
-		n = sprintf(tmp, "%d", file->statbuf.st_size);
+		n = sprintf(tmp, "%d", (int)file->statbuf.st_size);
 
 	if (n > widths[3]) widths[3] = n;
 }
@@ -327,7 +326,7 @@ int main(int argc, char ** argv) {
 	char * p = ".";
 
 	if (argc > 1) {
-		int index, c;
+		int c;
 		while ((c = getopt(argc, argv, "ahl")) != -1) {
 			switch (c) {
 				case 'a':
@@ -342,11 +341,12 @@ int main(int argc, char ** argv) {
 			}
 		}
 
-		if (optind < argc) {
+		if (optind < argc)
 			p = argv[optind];
-			if(!strcmp(p,"~")) /* Check if argument is home */
-				strcpy(p, getenv("HOME"));
-		}
+
+		if(!strcmp(p, "~")) /* Check if argument is home */
+			strcpy(p, getenv("HOME"));
+
 		if (optind + 1 < argc)
 			fl_echo_dir = 1;
 	}
@@ -382,7 +382,7 @@ int main(int argc, char ** argv) {
 			/* Check if file exists with stat: */
 			int t = stat(p, &f->statbuf);
 			if(t < 0) {
-				printf("%s: cannot access %s: No such file or directory\n",argv[0], p);
+				printf("%s: cannot access %s: No such file or directory\n", argv[0], p);
 				free(f);
 				out = 2;
 			} else {
@@ -398,7 +398,7 @@ int main(int argc, char ** argv) {
 		struct file_t ** file_arr = malloc(sizeof(struct file_t *) * files->length);
 		int index = 0;
 		foreach(node, files) {
-			file_arr[index++] = (struct tfile *)node->value;
+			file_arr[index++] = (struct file_t *)node->value;
 		}
 
 		list_free(files);

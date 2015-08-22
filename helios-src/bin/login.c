@@ -58,7 +58,7 @@ int main(int argc, char ** argv) {
 		char _hostname[256];
 		syscall_gethostname(_hostname);
 
-		printf("\e[41;1;37m%s login:\e[0m ", _hostname); fflush(stdout);
+		printf("\e[47;30m%s login:\e[0m ", _hostname); fflush(stdout);
 		char * r = fgets(username, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
@@ -68,7 +68,7 @@ int main(int argc, char ** argv) {
 		}
 		username[strlen(username)-1] = '\0';
 
-		printf("\e[41;1;37m  password:  \e[0m "); fflush(stdout);
+		printf("\e[47;30m  password:  \e[0m "); fflush(stdout);
 
 		/* Disable echo */
 		struct termios old, new;
