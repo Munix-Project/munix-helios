@@ -1,9 +1,4 @@
-/*
- * ex.c
- *
- *  Created on: Aug 20, 2015
- *      Author: miguel
- */
+
 #include <stdio.h>
 #include <unistd.h>
 #include <fcntl.h>

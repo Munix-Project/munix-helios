@@ -1,9 +1,3 @@
-/*
- * chmod.c
- *
- *  Created on: Aug 22, 2015
- *      Author: miguel
- */
 
 #include <stdio.h>
 #include <stdlib.h>

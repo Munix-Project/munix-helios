@@ -7,13 +7,6 @@
  *
  */
 
-/*
- * sudo.c
- *
- *  Created on: Aug 21, 2015
- *      Author: miguel
- */
-
 #include <stdio.h>
 #include <stdint.h>
 #include <syscall.h>

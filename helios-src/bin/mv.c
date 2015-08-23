@@ -1,9 +1,3 @@
-/*
- * mv.c
- *
- *  Created on: Aug 20, 2015
- *      Author: miguel
- */
 
 #include <stdlib.h>
 #include <string.h>

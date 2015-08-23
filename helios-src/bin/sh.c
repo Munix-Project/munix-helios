@@ -1,3 +1,10 @@
+/*
+ * This file is part of ToaruOS and is released under the terms
+ * of the NCSA / University of Illinois License - see LICENSE.md
+ * Copyright (C) 2015 Dale Weiler
+ *
+ */
+
 /* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */
 /* TODO: Add 'sub-function' for shell for when the user presses tab while typing a command and a list of files show up */
 
