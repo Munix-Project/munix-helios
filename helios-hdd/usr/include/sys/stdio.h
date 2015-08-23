@@ -1,17 +1,6 @@
 #ifndef _NEWLIB_STDIO_H
 #define _NEWLIB_STDIO_H
 
-/*
- *  XXX WARNING: This macro is important for the kernel to
- * actually make changes to the disk and not just the VFS.
- * It's a known bug and it must be fixed asap
- */
-#include <sys/stat.h>
-#define UPDATE_PERM(target) if(target != NULL) { \
-	struct stat st; \
-	stat(target, &st); \
-	chmod(target, st.st_mode); }
-
 #include <sys/lock.h>
 #include <sys/reent.h>
 

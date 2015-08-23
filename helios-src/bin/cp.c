@@ -49,7 +49,6 @@ int main(int argc, char ** argv) {
 	}
 
 	/* Grab destination path data: */
-	char * target = NULL;
 	IS_IT_A_DIR(argv[2]) {
 		char * src_filename = strrchr(argv[1], '/');
 		if(!src_filename)
@@ -58,12 +57,9 @@ int main(int argc, char ** argv) {
 		char *target_path = malloc((strlen(argv[2]) + strlen(src_filename) + 2) * sizeof(char));
 		sprintf(target_path, "%s/%s", argv[2], src_filename);
 		/* File target determined: */
-		target = malloc((strlen(argv[2]) + strlen(src_filename) + 2) * sizeof(char));
-		strcpy(target, target_path);
 		fout = fopen(target_path, "w");
 		free(target_path);
 	} else {
-		target = argv[2];
 		fout = fopen(argv[2], "w");
 	}
 
@@ -72,10 +68,6 @@ int main(int argc, char ** argv) {
 
 	fclose(fin);
 	fclose(fout);
-
-	/* Do chmod on the output file, it's a temporary fix for files not being written to the disk */
-	UPDATE_PERM(target);
-	free(target);
 
 	return 0;
 }
