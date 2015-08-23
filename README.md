@@ -19,3 +19,7 @@ Basic commands:
 Threading example:
 
 ![Example threading](http://i.imgur.com/45rMMHk.png)
+
+Credits:
+--------------
+See LICENSE.md
