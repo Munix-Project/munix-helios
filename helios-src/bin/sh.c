@@ -1,21 +1,5 @@
-/* vim: tabstop=4 shiftwidth=4 noexpandtab
- * This file is part of ToaruOS and is released under the terms
- * of the NCSA / University of Illinois License - see LICENSE.md
- * Copyright (C) 2013-2014 Kevin Lange
- *
- * E-Shell
- *
- * This is the "experimental shell". It provides
- * a somewhat unix-like shell environment, but does
- * not include a parser any advanced functionality.
- * It simply cuts its input into arguments and executes
- * programs.
- */
-
 /* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */
 /* TODO: Add 'sub-function' for shell for when the user presses tab while typing a command and a list of files show up */
-
-#define _XOPEN_SOURCE
 
 #include <stdio.h>
 #include <stdint.h>
@@ -123,11 +107,9 @@ void shell_install_command(char * name, shell_command_t func) {
 }
 
 shell_command_t shell_find(char * str) {
-	for (uint32_t i = 0; i < shell_commands_len; ++i) {
-		if (!strcmp(str, shell_commands[i])) {
+	for (uint32_t i = 0; i < shell_commands_len; ++i)
+		if (!strcmp(str, shell_commands[i]))
 			return shell_pointers[i];
-		}
-	}
 	return NULL;
 }
 
@@ -529,9 +511,8 @@ void run_cmd(char ** args) {
 	shell_command_t func = shell_find(*args);
 	if (func) {
 		int argc = 0;
-		while (args[argc]) {
+		while (args[argc])
 			argc++;
-		}
 		i = func(argc, args);
 	} else {
 		if (i != 0) {
@@ -964,13 +945,6 @@ uint32_t shell_cmd_history(int argc, char * argv[]) {
 	return 0;
 }
 
-uint32_t shell_cmd_test(int argc, char * argv[]) {
-	printf("%d arguments.\n", argc);
-	for (int i = 0; i < argc; ++i)
-		printf("%d -> %s\n", i, argv[i]);
-	return argc;
-}
-
 uint32_t shell_cmd_export(int argc, char * argv[]) {
 	if (argc > 1)
 		putenv(argv[1]);
@@ -1061,7 +1035,6 @@ void install_commands() {
 	shell_install_command("chdir",   shell_cmd_cd);
 	shell_install_command("history", shell_cmd_history);
 	shell_install_command("export",  shell_cmd_export);
-	shell_install_command("test",    shell_cmd_test);
 	shell_install_command("exit",    shell_cmd_exit);
 	shell_install_command("set",     shell_cmd_set);
 	shell_install_command("pwd", 	 shell_cmd_pwd);

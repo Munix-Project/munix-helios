@@ -14,28 +14,17 @@
 /* TODO: Allow copy of directories, not just files */
 
 #define CHUNK_SIZE 4096
+
 #define IS_IT_A_DIR(path) struct stat statbuff; \
-	stat(path, &statbuff); \
-	if(S_ISDIR(statbuff.st_mode))
+		stat(path, &statbuff); \
+		if(S_ISDIR(statbuff.st_mode))
 
 /* Copies a single file: */
 static void copy(FILE * fin, FILE * fout) {
-	size_t length;
-
-	fseek(fin, 0, SEEK_END);
-	length = ftell(fin);
-	fseek(fin, 0, SEEK_SET);
-
-	char buf[CHUNK_SIZE];
-	while (length > CHUNK_SIZE) {
-		fread( buf, 1, CHUNK_SIZE, fin);
-		fwrite(buf, 1, CHUNK_SIZE, fout);
-		length -= CHUNK_SIZE;
-	}
-	if (length > 0) {
-		fread( buf, 1, length, fin);
-		fwrite(buf, 1, length, fout);
-	}
+	int numBytes;
+	char buf[50];
+	while((numBytes=fread(buf, 1, 50, fin)))
+		fwrite(buf, 1, numBytes, fout);
 }
 
 int main(int argc, char ** argv) {
@@ -46,6 +35,11 @@ int main(int argc, char ** argv) {
 		return 1;
 	}
 
+	if(!strcmp(argv[1], argv[2])) return 0; /* Same destination, no point in copying */
+
+	if(!strcmp(argv[1],"~")) strcpy(argv[1], getenv("HOME"));
+	if(!strcmp(argv[2],"~")) strcpy(argv[2], getenv("HOME"));
+
 	/* Set fin and fout: */
 
 	fin = fopen(argv[1], "r");
@@ -54,12 +48,8 @@ int main(int argc, char ** argv) {
 		return 2;
 	}
 
-	if(!strcmp(argv[1], argv[2])) return 0; /* Same destination, no point in copying */
-
-	if(!strcmp(argv[1],"~")) strcpy(argv[1], getenv("HOME"));
-	if(!strcmp(argv[2],"~")) strcpy(argv[2], getenv("HOME"));
-
 	/* Grab destination path data: */
+	char * target = NULL;
 	IS_IT_A_DIR(argv[2]) {
 		char * src_filename = strrchr(argv[1], '/');
 		if(!src_filename)
@@ -68,10 +58,12 @@ int main(int argc, char ** argv) {
 		char *target_path = malloc((strlen(argv[2]) + strlen(src_filename) + 2) * sizeof(char));
 		sprintf(target_path, "%s/%s", argv[2], src_filename);
 		/* File target determined: */
+		target = malloc((strlen(argv[2]) + strlen(src_filename) + 2) * sizeof(char));
+		strcpy(target, target_path);
 		fout = fopen(target_path, "w");
-
 		free(target_path);
 	} else {
+		target = argv[2];
 		fout = fopen(argv[2], "w");
 	}
 
@@ -80,6 +72,10 @@ int main(int argc, char ** argv) {
 
 	fclose(fin);
 	fclose(fout);
+
+	/* Do chmod on the output file, it's a temporary fix for files not being written to the disk */
+	UPDATE_PERM(target);
+	free(target);
 
 	return 0;
 }

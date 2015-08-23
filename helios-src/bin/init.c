@@ -49,7 +49,7 @@ void setupOS(void){
 
 void run(char * args[]){
 	int pid = fork();
-	if(!pid){
+	if(!pid) {
 		execvp(args[0], args);
 		exit(0);
 	} else {
@@ -66,5 +66,4 @@ int main(int argc, char * argv[]) {
 
 	/* All is configured for startup, launch the terminal */
 	run((char*[]){"/bin/terminal", "-l", NULL});
-	for(;;);
 }

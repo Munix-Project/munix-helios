@@ -36,7 +36,6 @@ int main(int argc, char**argv) {
 
 		struct stat _stat;
 		fstat(filedir, &_stat);
-
 		if (S_ISDIR(_stat.st_mode)) {
 			fprintf(stderr, "%s: %s: Is a directory\n", argv[0], argv[i]);
 			close(filedir);

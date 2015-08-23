@@ -42,6 +42,7 @@ C_SRCS += \
 ../helios-src/bin/touch.c \
 ../helios-src/bin/uname.c \
 ../helios-src/bin/uptime.c \
+../helios-src/bin/user.c \
 ../helios-src/bin/which.c \
 ../helios-src/bin/whoami.c 
 
@@ -84,6 +85,7 @@ OBJS += \
 ./helios-src/bin/touch.o \
 ./helios-src/bin/uname.o \
 ./helios-src/bin/uptime.o \
+./helios-src/bin/user.o \
 ./helios-src/bin/which.o \
 ./helios-src/bin/whoami.o 
 
@@ -126,6 +128,7 @@ C_DEPS += \
 ./helios-src/bin/touch.d \
 ./helios-src/bin/uname.d \
 ./helios-src/bin/uptime.d \
+./helios-src/bin/user.d \
 ./helios-src/bin/which.d \
 ./helios-src/bin/whoami.d 
 
