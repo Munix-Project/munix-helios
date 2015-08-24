@@ -12,7 +12,6 @@
 #include <pwd.h>
 #include <security/crypt/sha2.h>
 
-
 int helios_auth(char * user, char * pass) {
 	/* Generate SHA512 */
 	char * hash = malloc(sizeof(char) * SHA512_DIGEST_STRING_LENGTH);

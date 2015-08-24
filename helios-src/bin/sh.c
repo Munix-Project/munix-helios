@@ -214,7 +214,7 @@ void draw_prompt(int ret) {
 		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
 		printf(" \e[0m[\033[38;5;167mret: %d\e[0m] ", ret);
-	printf("\033[0m%s\033[0m ", getuid() == 0 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
+	printf("\033[0m%s\033[0m ", getuid() < 1000 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
 	printf("\e[0m");
 	fflush(stdout);
 }
