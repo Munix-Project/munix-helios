@@ -553,7 +553,7 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 
 #define USE_BELL 0
 
-#define ZOMB_SHELL_STARTUP_COUNT 1
+#define MULTISHELL_STARTUP_COUNT 1
 
 /* master and slave pty descriptors */
 static int fd_master, fd_slave;
@@ -1122,21 +1122,24 @@ static void hide_textmode_cursor() {
 	outb(0x3D5, 0xFF);
 }
 
-void zombie_sh() {
+void multishell_single() {
 	/* TODO: Launch login with a parameter of 'quiet' */
-	char * tokens[] = {"/bin/login", NULL};
+	char * tokens[] = {"/bin/login", "-q", NULL};
 	execvp(tokens[0], tokens);
 }
 
-void spawn_zombie_sh(){
-	if(!fork())
-		zombie_sh(NULL);
+void spawn_shell(){
+	if(!fork()) multishell_single();
 }
 
-void * monitor_zombies_sh(void * garbage) {
-	/* Create one "zombie" shell */
-	for(int i=0;i<ZOMB_SHELL_STARTUP_COUNT;i++)
-		spawn_zombie_sh();
+void kill_shell(int shell_pid) {
+	/* TODO */
+}
+
+void * monitor_multishell(void * garbage) {
+	/* Create one shell */
+	for(int i=0;i<MULTISHELL_STARTUP_COUNT;i++)
+		spawn_shell();
 
 	/* TODO: Monitor more shell requests, and allocate/deallocate them when they are asked for */
 	while(!exit_application) {
@@ -1225,8 +1228,8 @@ int main(int argc, char ** argv) {
 		pthread_t cursor_blink_thread;
 		pthread_create(&cursor_blink_thread, NULL, blink_cursor, NULL);
 
-		pthread_t monitor_zombies_sh_th;
-		pthread_create(&monitor_zombies_sh_th, NULL, monitor_zombies_sh, NULL);
+		pthread_t monitor_multishell_th;
+		pthread_create(&monitor_multishell_th, NULL, monitor_multishell, NULL);
 
 		unsigned char buf[1024];
 		while (!exit_application) {

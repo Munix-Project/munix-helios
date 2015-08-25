@@ -39,6 +39,10 @@ void sig_segv(int sig) {
 }
 
 int main(int argc, char ** argv) {
+	/* TODO: Add quiet login option */
+	if(argc>1) {
+		for(;;);
+	}
 	system("uname -a");
 	system("cat /etc/intro");
 	fflush(stdout);
