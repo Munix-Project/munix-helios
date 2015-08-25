@@ -6,6 +6,7 @@
 C_SRCS += \
 ../helios-src/bin/cat.c \
 ../helios-src/bin/chmod.c \
+../helios-src/bin/chown.c \
 ../helios-src/bin/clear.c \
 ../helios-src/bin/cp.c \
 ../helios-src/bin/cpudet.c \
@@ -49,6 +50,7 @@ C_SRCS += \
 OBJS += \
 ./helios-src/bin/cat.o \
 ./helios-src/bin/chmod.o \
+./helios-src/bin/chown.o \
 ./helios-src/bin/clear.o \
 ./helios-src/bin/cp.o \
 ./helios-src/bin/cpudet.o \
@@ -92,6 +94,7 @@ OBJS += \
 C_DEPS += \
 ./helios-src/bin/cat.d \
 ./helios-src/bin/chmod.d \
+./helios-src/bin/chown.d \
 ./helios-src/bin/clear.d \
 ./helios-src/bin/cp.d \
 ./helios-src/bin/cpudet.d \

@@ -30,6 +30,7 @@ char * master_passwd[CHUNK_SIZE];
 char * passwd[CHUNK_SIZE];
 
 int parse_uid(char * userline) {
+	struct group * g;
 	char * ptr = NULL;
 	int ocurr = 0, ptr_end = 0;
 	uint8_t start_counting_end = 0;
