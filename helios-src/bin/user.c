@@ -7,6 +7,7 @@
 #include <termios.h>
 #include <unistd.h>
 #include <security/crypt/sha2.h>
+#include <security/helios_auth.h>
 
 uint8_t fl_usradd = 0;
 uint8_t fl_usrdel = 0;
@@ -21,10 +22,71 @@ uint8_t fl_isadmin = 0;
 
 #define M_PASSWD "/etc/master.passwd"
 #define PASSWD "/etc/passwd"
-#define HOME "/home/"
+#define HOME "/home"
+
+#define READLINE(c) (c = getc(passwd)) != '\n' && c != EOF
 
 char * master_passwd[CHUNK_SIZE];
 char * passwd[CHUNK_SIZE];
+
+int parse_uid(char * userline) {
+	char * ptr = NULL;
+	int ocurr = 0, ptr_end = 0;
+	uint8_t start_counting_end = 0;
+
+	for(int i=0;i<strlen(userline);i++) {
+		if(userline[i] == ':') ocurr++;
+
+		if(start_counting_end)
+			ptr_end++;
+
+		if(ocurr==2) {
+			ptr = userline + i + 2;
+			start_counting_end = 1;
+		}
+
+		if(ocurr == 3) break;
+	}
+
+	char int_str[5];
+	memcpy(int_str, ptr, ptr_end);
+	int_str[ptr_end] = '\0';
+	return atoi(int_str);
+}
+
+void rebuild_passwd(int linecount, int linetodelete, char * filepath) {
+	FILE * passwd = fopen(filepath, "r+");
+
+	/* Put all lines into a buffer */
+	int passwd_len = linecount - 1;
+	char ** passwd_buff = (char**) malloc(sizeof(char**) * passwd_len);
+	char c = 0;
+	int passwd_line = 0, i = 0, j = 0;
+	while(c != EOF) {
+		passwd_buff[i] = malloc(sizeof(char*) * CHUNK_SIZE);
+		while(READLINE(c))
+			if(i!=linetodelete)
+				passwd_buff[passwd_line][j++] = c;
+		if(i!=linetodelete)
+			passwd_buff[passwd_line++][j] = '\0';
+		j = 0;
+		i++;
+	}
+
+	/* TODO: Order user's UID to prevent holes */
+
+	/* Write everything back: */
+	fclose(passwd);
+	passwd = fopen(filepath, "w");
+	for(int i=0;i < passwd_len;i++)
+		fprintf(passwd, "%s\n", passwd_buff[i]);
+	fclose(passwd);
+
+	/* Cleanup: */
+	for(int i=0;i < passwd_len;i++)
+		free(passwd_buff[i]);
+	free(passwd_buff);
+}
 
 static void err_msg(char * msg) {
 	fprintf(stderr, "user: error: %s\n", msg);
@@ -53,10 +115,10 @@ void enable_echo(struct termios old) {
 	tcsetattr(fileno(stdin), TCSAFLUSH, &old);
 }
 
-char * ask_passwd() {
+char * ask_passwd(uint8_t apply_sha2) {
 	const int PASSLEN = 1024;
 	char * passwd = malloc(sizeof(char) * PASSLEN);
-	printf("password: ");
+	printf("%spassword: ", apply_sha2 ? "new " : "");
 	fflush(stdout);
 	struct termios old = disable_echo();
 
@@ -67,33 +129,32 @@ char * ask_passwd() {
 	fprintf(stdout, "\n");
 
 	/* Get hash from password: */
-	char * hash = malloc(sizeof(char) * SHA512_DIGEST_STRING_LENGTH);
-	SHA512_Data(passwd, strlen(passwd), hash);
+	if(apply_sha2) {
+		char * hash = malloc(sizeof(char) * SHA512_DIGEST_STRING_LENGTH);
+		SHA512_Data(passwd, strlen(passwd), hash);
 
-	free(passwd);
-	return hash;
+		free(passwd);
+		return hash;
+	} else
+		return passwd;
 }
 
 int getnewuid(struct passwd * p, FILE * masterpasswd) {
-	int lastuid = -1, tmp = 0;
+	int lastuid = -1;
 
-	/* UID for admin */
-	while((p = (struct passwd*) fgetpwent(masterpasswd))) {
-		if(fl_isadmin && tmp > p->pw_uid) { lastuid = tmp - 1; break; } /* A hole was found */
-		tmp = p->pw_uid;
-		if(fl_isadmin && tmp>=1000) break;
-		lastuid = tmp;
-	}
-
-	/* UID for user: */
-	if(!fl_isadmin)
-		while((p = (struct passwd*)fgetpwent(masterpasswd))) {
-			if(tmp > lastuid) { lastuid = tmp - 1; break; } /* A hole was found */
-			lastuid = p->pw_uid;
+	if(fl_isadmin) {
+		/* UID for admin */
+		while((p = (struct passwd*) fgetpwent(masterpasswd))) {
+			if(p->pw_uid < 1000)
+				lastuid = p->pw_uid;
 		}
-
-	lastuid++;
-	return lastuid;
+	} else {
+		/* UID for user: */
+		while((p = (struct passwd*) fgetpwent(masterpasswd)))
+			if(p->pw_uid >= 1000)
+				lastuid = p->pw_uid;
+	}
+	return lastuid + 1;
 }
 
 uint8_t are_we_admin() {
@@ -101,6 +162,7 @@ uint8_t are_we_admin() {
 }
 
 void adduser(char * username) {
+	/* A user just tried to create an admin account: */
 	if(!are_we_admin() && fl_isadmin)
 		err_msg("only root or an administrator can add new administrator accounts");
 
@@ -111,7 +173,7 @@ void adduser(char * username) {
 		err_msg(buff);
 	}
 
-	char * pass = ask_passwd();
+	char * pass = ask_passwd(1);
 
 	/* Find UID: */
 	FILE * masterpasswd = fopen(M_PASSWD,"r");
@@ -147,9 +209,76 @@ void adduser(char * username) {
 	system(buff);
 }
 
+uint8_t is_deleting_itself(char * username) {
+	/* Check if the user is trying to delete itself while logged in */
+	int thisuid = getuid();
+	struct passwd * p;
+	FILE * master_passwd = fopen(M_PASSWD, "r");
+	while ((p = fgetpwent(master_passwd)))
+		if(p->pw_uid == thisuid && !strcmp(p->pw_name, username))
+			return 1;
+	fclose(master_passwd);
+	return 0;
+}
+
 void deluser(char * username) {
-	/* Check if user exists: */
-	printf("%s\n", username); fflush(stdout);
+	/* Validate request for account deletion: */
+	if(!strcmp(username,"root")) /* wow... why would you even?... */
+		err_msg("cannot delete root!");
+
+	if(is_deleting_itself(username))
+		err_msg("cannot delete this account while logged in on it");
+
+	if(!are_we_admin() && getpwnam(username)->pw_uid < 1000)
+		err_msg("only root or an administrator can delete administrator accounts");
+
+	if(!user_exists(username)) {
+		char buff[128];
+		sprintf(buff, "%s user does not exist", username);
+		err_msg(buff);
+	}
+
+	/* All good, proceed to delete it */
+
+	char * pass = NULL;
+	while(1) {
+		pass = ask_passwd(0);
+		int uid = helios_auth(username, pass);
+		if (uid < 0) {
+			printf("\nLogin failed.\n"); fflush(stdout);
+			free(pass);
+			continue;
+		}
+		break;
+	}
+	free(pass);
+
+	/* Ask for confirmation: */
+	printf("Are you sure? (N/y): "); fflush(stdout);
+	char ans = getc(stdin);
+	if(ans != 'Y' && ans != 'y') return;
+
+	/* delete nth line from passwd and master.passwd */
+	struct passwd * p;
+	FILE * master = fopen(M_PASSWD, "r");
+	int user_line = -1, i = 0;
+	while ((p = fgetpwent(master))) {
+		if(!strcmp(p->pw_name, username))
+			user_line = i;
+		i++;
+	}
+	fclose(master);
+
+	/* Remove the line and reorder the UID's at the same time */
+	rebuild_passwd(i, user_line, PASSWD);
+	rebuild_passwd(i, user_line, M_PASSWD);
+
+	/* Finally, rename the home folder */
+	char home[256];
+	sprintf(home, "%s/%s", HOME, username);
+	char buff[256];
+	sprintf(buff, "rename %s %s_bak", home, username);
+	system(buff);
 }
 
 void addusertogroup(char * username, char * group) {

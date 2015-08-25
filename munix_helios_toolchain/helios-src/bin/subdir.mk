@@ -200,7 +200,7 @@ helios-src/bin/terminal.o: ../helios-src/bin/terminal.c
 helios-src/bin/user.o: ../helios-src/bin/user.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2 -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/user.d" -o "$@" "$<"
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2 -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/user.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

@@ -21,6 +21,7 @@
 
 #define LINE_LEN 1024
 
+static uint8_t already_saw_motd = 0;
 uint32_t child = 0;
 
 void sig_pass(int sig) {
@@ -91,8 +92,16 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 
-		fprintf(stdout, "\e[32;1m\nLogin Successful!\e[37;1;40m\n\n--------------------------------------------------------------------------------\n\n\e[0m"); fflush(stdout);
-		system("cat /etc/motd");
+		fprintf(stdout, "\e[32;1m\nLogin Successful!");
+		if(!already_saw_motd){
+			fprintf(stdout, "\e[37;1;40m\n\n--------------------------------------------------------------------------------");
+			fflush(stdout);
+			system("cat /etc/motd");
+			fprintf(stdout,"\n"); fflush(stdout);
+			already_saw_motd = 1;
+		} else fprintf(stdout, "\n\n");
+		fprintf(stdout,"\e[0m");
+		fflush(stdout);
 
 		pid_t pid = getpid();
 		pid_t f = fork();
