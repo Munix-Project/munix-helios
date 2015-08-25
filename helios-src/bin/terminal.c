@@ -553,6 +553,8 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 
 #define USE_BELL 0
 
+#define ZOMB_SHELL_STARTUP_COUNT 1
+
 /* master and slave pty descriptors */
 static int fd_master, fd_slave;
 static FILE * terminal;
@@ -1120,6 +1122,29 @@ static void hide_textmode_cursor() {
 	outb(0x3D5, 0xFF);
 }
 
+void zombie_sh() {
+	/* TODO: Launch login with a parameter of 'quiet' */
+	char * tokens[] = {"/bin/login", NULL};
+	execvp(tokens[0], tokens);
+}
+
+void spawn_zombie_sh(){
+	if(!fork())
+		zombie_sh(NULL);
+}
+
+void * monitor_zombies_sh(void * garbage) {
+	/* Create one "zombie" shell */
+	for(int i=0;i<ZOMB_SHELL_STARTUP_COUNT;i++)
+		spawn_zombie_sh();
+
+	/* TODO: Monitor more shell requests, and allocate/deallocate them when they are asked for */
+	while(!exit_application) {
+
+	}
+	pthread_exit(0);
+}
+
 int main(int argc, char ** argv) {
 
 	_login_shell = 0;
@@ -1199,6 +1224,9 @@ int main(int argc, char ** argv) {
 
 		pthread_t cursor_blink_thread;
 		pthread_create(&cursor_blink_thread, NULL, blink_cursor, NULL);
+
+		pthread_t monitor_zombies_sh_th;
+		pthread_create(&monitor_zombies_sh_th, NULL, monitor_zombies_sh, NULL);
 
 		unsigned char buf[1024];
 		while (!exit_application) {
