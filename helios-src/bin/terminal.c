@@ -552,6 +552,7 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 #include <pthread_os.h>
 #include <kbd.h>
 #include <graphics/vga-color.h>
+#include <syscall.h>
 
 #define USE_BELL 0
 
@@ -577,6 +578,9 @@ uint8_t  _hold_out      = 0;    /* state indicator on last cell ignore \n */
 #define char_height 1
 
 term_state_t * ansi_state = NULL;
+
+char * shm_monitor_input;
+char * shm_monitor_output;
 
 void reinit(); /* Defined way further down */
 void term_redraw_cursor();
@@ -1136,76 +1140,89 @@ void multishell_single(int forkno) {
 		sprintf(opt,"-q %d", forkno);
 		char * tokens[] = {"/bin/login", opt, NULL};
 		execvp(tokens[0], tokens);
+		system("reboot");
+		_exit(EXIT_SUCCESS);
 	} else {
 		char * tokens[] = {"/bin/login", NULL};
 		execvp(tokens[0], tokens);
+		_exit(EXIT_SUCCESS);
 	}
 }
 
+int shellpid_list[MAX_MULTISHELL];
+
 void spawn_shell(int forkno){
-	if(!fork()){
+	int shellpid = fork();
+
+	if(!shellpid) {
 		/* Redirect IO */
 		for(int i=0;i<3;i++)
 			dup2(fd_slave, STDIN_FILENO + i);
 
-		/*
-		 * Create file descriptor to allow other processes
-		 * to send data to this shell and this exact PID on this function
-		 */
-		char procpath[64];
-		sprintf(procpath, "/procn/%d/", getpid());
-		syscall_mkdir(procpath, 777);
-		strcat(procpath,"fd");
-		syscall_mkdir(procpath, 777);
-
-		/* STDIN */
-		char tmp[64];
-		FILE * fd;
-		memcpy(tmp, procpath, 64);
-		strcat(tmp,"/0");
-		fd = fopen(tmp,"w"); fclose(fd);
-
-		/* STDOUT */
-		memcpy(tmp, procpath, 64);
-		strcat(tmp,"/1");
-		fd = fopen(tmp,"w"); fclose(fd);
-
-		/* STDERR */
-		memcpy(tmp, procpath, 64);
-		strcat(tmp,"/2");
-		fd = fopen(tmp,"w"); fclose(fd);
-
-		/* Info file, used for checking if the shell is busy and to fetch its id */
-		sprintf(tmp, "/procn/%d/info", getpid());
-		fd = fopen(tmp,"w");
-		fprintf(fd, "tty_id: %d\n", forkno);
-		fprintf(fd, "logged: %d\n", 0);
-		fprintf(fd, "user: %s\n", "(null)");
-		fclose(fd);
 		/* Call shell */
 		multishell_single(forkno);
 	}
+
+	shellpid_list[forkno] = shellpid;
 }
 
-void kill_shell(int shell_pid) {
+void kill_shell(int shell_pid, int shellno) {
+	shellpid_list[shellno] = -1;
 	kill(shell_pid, SIGKILL);
 	shells_forked--;
 }
 
+void update_shm_shmon(){
+	char nextshell_str[24];
+	memset(nextshell_str, 0, 24);
+	sprintf(nextshell_str,"nextshell:%d", shells_forked);
+	strcpy(shm_monitor_input, nextshell_str);
+}
+
 void monitor_multishell() {
-	/* Create one shell */
+	memset(shellpid_list, -1, MAX_MULTISHELL);
+
+	/* Create two shells at startup */
 	for(int i=0;i < MULTISHELL_STARTUP_COUNT;i++) {
 		spawn_shell(i);
 		shells_forked++;
 	}
 
-	/* Monitor more shell requests, and allocate/deallocate them when they are asked for */
-	FILE * shmon = fopen("/procn/shmon","w"); /* Use this file to request for more shells */
-	fclose(shmon); /*XXX need to use folder proc,not procn, fix this on the kernel*/
+	size_t shmon_s = 24;
+	/* read only from other processes perspective */
+	shm_monitor_input = (char *) syscall_shm_obtain(SHM_SHELLMON_IN, &shmon_s);
+	/* write only from other processes perspective */
+	shm_monitor_output = (char *) syscall_shm_obtain(SHM_SHELLMON_OUT, &shmon_s);
+
+	memset(shm_monitor_output, 0, shmon_s);
+	update_shm_shmon();
 
 	while(!exit_application) {
+		if(shm_monitor_output[0]!=0) {
+			/* Process request */
+			if(shm_monitor_output[0] == SHM_CTRL_KILL[0] && shm_monitor_output[1] == SHM_CTRL_KILL[1]) {
+				/* Kill a shell */
+				char * shellno_str = strchr(shm_monitor_output, ':') + 1;
+				int shellno = atoi(shellno_str);
 
+				/* grab shell pid from shellno */
+				int shellpid = shellpid_list[shellno];
+				kill_shell(shellpid, shellno);
+			} else
+				spawn_shell(shells_forked++);
+
+			memset(shm_monitor_output, 0 , shmon_s);
+
+			/* Update shm_monitor_input with new info */
+			update_shm_shmon();
+		}
+
+		usleep(1000);
 	}
+
+	syscall_shm_release(SHM_SHELLMON_IN);
+	syscall_shm_release(SHM_SHELLMON_OUT);
+
 	pthread_exit(0);
 }
 

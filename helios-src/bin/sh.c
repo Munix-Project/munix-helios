@@ -861,6 +861,7 @@ void show_usage(int argc, char * argv[]) {
 }
 
 uint8_t sigcont = 0;
+uint8_t reap = 0;
 
 void sig_tstp(int sig) {
 	sigcont = 0;
@@ -870,6 +871,12 @@ void sig_tstp(int sig) {
 
 void sig_cont(int sig) {
 	sigcont = 1;
+}
+
+void sig_kill(int sig){
+	sig_pass(sig);
+	reap = 1;
+	sig_cont(sig);
 }
 
 int main(int argc, char ** argv) {
@@ -882,6 +889,7 @@ int main(int argc, char ** argv) {
 	signal(SIGWINCH, sig_pass);
 	signal(SIGTSTP, sig_tstp);
 	signal(SIGCONT, sig_cont);
+	signal(SIGKILL, sig_kill);
 
 	getuser();
 	gethost();
@@ -910,6 +918,8 @@ int main(int argc, char ** argv) {
 	shell_interactive = 1;
 
 	while (1) {
+		if(reap) break;
+
 		draw_prompt(last_ret);
 		char buffer[LINE_LEN] = {0};
 		int  buffer_size;
@@ -918,8 +928,6 @@ int main(int argc, char ** argv) {
 		last_ret = shell_exec(buffer, buffer_size);
 		shell_scroll = 0;
 	}
-
-	exit(EXIT_SUCCESS);
 	return 0;
 }
 

@@ -38,23 +38,31 @@ void sig_segv(int sig) {
 }
 
 uint8_t multishell_cont = 0;
+uint8_t reap = 0;
 
 void sig_tstp(int sig) {
 	multishell_cont = 0;
 	if (child) kill(child, sig);
-	while(!multishell_cont) usleep(100); /*wait for SIGCONT*/
+	while(!multishell_cont) usleep(100); /*wait for SIGCONT and reap flag*/
 }
 
 void sig_cont(int sig) {
 	multishell_cont = 1;
 }
 
+void sig_kill(int sig) {
+	reap = 1;
+	sig_pass(sig);
+	sig_cont(sig);
+}
+
 int main(int argc, char ** argv) {
-	signal(SIGINT, sig_pass);
+	signal(SIGINT, 	 sig_pass);
 	signal(SIGWINCH, sig_pass);
-	signal(SIGSEGV, sig_segv);
-	signal(SIGTSTP, sig_tstp);
-	signal(SIGCONT, sig_cont);
+	signal(SIGSEGV,  sig_segv);
+	signal(SIGTSTP,  sig_tstp);
+	signal(SIGCONT,  sig_cont);
+	signal(SIGKILL,  sig_kill);
 
 	if(argc>1) {
 		int c;
@@ -72,6 +80,8 @@ int main(int argc, char ** argv) {
 		fflush(stdout);
 		printf("\n");
 	}
+
+	if(reap) return 0;
 
 	while (1) {
 		char * username = malloc(sizeof(char) * 1024);
@@ -154,6 +164,5 @@ int main(int argc, char ** argv) {
 		free(username);
 		free(password);
 	}
-
 	return 0;
 }
