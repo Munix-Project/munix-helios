@@ -7,6 +7,7 @@
 
 /* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */
 /* TODO: Add 'sub-function' for shell for when the user presses tab while typing a command and a list of files show up */
+/* TODO: Complete su */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -1044,7 +1045,8 @@ uint32_t shell_cmd_set(int argc, char * argv[]) {
 }
 
 uint32_t shell_cmd_pwd(int argc, char * argv[]) {
-	fprintf(stdout, "%s\n", cwd); fflush(stdout);
+	fprintf(stdout, "%s\n", cwd);
+	fflush(stdout);
 	return 0;
 }
 
@@ -1061,7 +1063,7 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 	char dir[16];
 	sprintf(dir,"/proc/%d/status", next_sh_pid);
 	FILE * proc = fopen(dir,"r");
-	int uid = 0;
+	int uid = 0; /*XXX*/
 	/* Fetch UID: */
 
 	fclose(proc);
