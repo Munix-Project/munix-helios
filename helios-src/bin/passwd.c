@@ -5,18 +5,27 @@
  *      Author: miguel
  */
 
-int main(int argc, char ** argv) {
+void usage() {
 	/* TODO */
+}
 
-	/* Parse user's password and fill a buffer with master.passwd */
+int main(int argc, char ** argv) {
+	if(argc > 1) {
+		/* TODO */
 
-	/* Ask for password */
+		/* Parse user's password and fill a buffer with master.passwd */
 
-	/* Compare hashes */
+		/* Ask for password */
 
-	/* If it's the same: */
-		/* Rewrite everything but with the password replaced */
-		/* Exit */
-	/* Else loop until user gets the password right or presses CTRL+C */
-	return 0;
+		/* Compare hashes */
+
+		/* If it's the same: */
+			/* Rewrite everything but with the password replaced */
+			/* Exit */
+			return 0;
+		/* Else loop until user gets the password right or presses CTRL+C */
+	}else {
+		usage();
+		return 1;
+	}
 }

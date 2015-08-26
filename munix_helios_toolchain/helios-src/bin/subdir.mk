@@ -14,6 +14,7 @@ C_SRCS += \
 ../helios-src/bin/env.c \
 ../helios-src/bin/find.c \
 ../helios-src/bin/free.c \
+../helios-src/bin/grep.c \
 ../helios-src/bin/hostname.c \
 ../helios-src/bin/init.c \
 ../helios-src/bin/kill.c \
@@ -24,6 +25,7 @@ C_SRCS += \
 ../helios-src/bin/mount.c \
 ../helios-src/bin/mv.c \
 ../helios-src/bin/nohup.c \
+../helios-src/bin/passwd.c \
 ../helios-src/bin/pkill.c \
 ../helios-src/bin/ps.c \
 ../helios-src/bin/pstree.c \
@@ -57,6 +59,7 @@ OBJS += \
 ./helios-src/bin/env.o \
 ./helios-src/bin/find.o \
 ./helios-src/bin/free.o \
+./helios-src/bin/grep.o \
 ./helios-src/bin/hostname.o \
 ./helios-src/bin/init.o \
 ./helios-src/bin/kill.o \
@@ -67,6 +70,7 @@ OBJS += \
 ./helios-src/bin/mount.o \
 ./helios-src/bin/mv.o \
 ./helios-src/bin/nohup.o \
+./helios-src/bin/passwd.o \
 ./helios-src/bin/pkill.o \
 ./helios-src/bin/ps.o \
 ./helios-src/bin/pstree.o \
@@ -100,6 +104,7 @@ C_DEPS += \
 ./helios-src/bin/env.d \
 ./helios-src/bin/find.d \
 ./helios-src/bin/free.d \
+./helios-src/bin/grep.d \
 ./helios-src/bin/hostname.d \
 ./helios-src/bin/init.d \
 ./helios-src/bin/kill.d \
@@ -110,6 +115,7 @@ C_DEPS += \
 ./helios-src/bin/mount.d \
 ./helios-src/bin/mv.d \
 ./helios-src/bin/nohup.d \
+./helios-src/bin/passwd.d \
 ./helios-src/bin/pkill.d \
 ./helios-src/bin/ps.d \
 ./helios-src/bin/pstree.d \

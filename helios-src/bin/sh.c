@@ -869,7 +869,6 @@ void sig_tstp(int sig) {
 }
 
 void sig_cont(int sig) {
-	/* Authenticate first before coming back to this shell */
 	sigcont = 1;
 }
 

@@ -560,7 +560,6 @@ static int shells_forked = 0;
 
 /* master and slave pty descriptors */
 static int fd_master, fd_slave;
-static FILE * terminal;
 
 uint16_t term_width     = 80;    /* Width of the terminal (in cells) */
 uint16_t term_height    = 25;    /* Height of the terminal (in cells) */
@@ -1074,7 +1073,7 @@ term_callbacks_t term_callbacks = {
 	&set_title,
 };
 
-void reinit(int send_sig) {
+void init_ansi() {
 	if (term_buffer) {
 		/* Do nothing */
 	} else {
@@ -1149,13 +1148,47 @@ void spawn_shell(int forkno){
 		for(int i=0;i<3;i++)
 			dup2(fd_slave, STDIN_FILENO + i);
 
+		/*
+		 * Create file descriptor to allow other processes
+		 * to send data to this shell and this exact PID on this function
+		 */
+		char procpath[64];
+		sprintf(procpath, "/procn/%d/", getpid());
+		syscall_mkdir(procpath, 777);
+		strcat(procpath,"fd");
+		syscall_mkdir(procpath, 777);
+
+		/* STDIN */
+		char tmp[64];
+		FILE * fd;
+		memcpy(tmp, procpath, 64);
+		strcat(tmp,"/0");
+		fd = fopen(tmp,"w"); fclose(fd);
+
+		/* STDOUT */
+		memcpy(tmp, procpath, 64);
+		strcat(tmp,"/1");
+		fd = fopen(tmp,"w"); fclose(fd);
+
+		/* STDERR */
+		memcpy(tmp, procpath, 64);
+		strcat(tmp,"/2");
+		fd = fopen(tmp,"w"); fclose(fd);
+
+		/* Info file, used for checking if the shell is busy and to fetch its id */
+		sprintf(tmp, "/procn/%d/info", getpid());
+		fd = fopen(tmp,"w");
+		fprintf(fd, "tty_id: %d\n", forkno);
+		fprintf(fd, "logged: %d\n", 0);
+		fprintf(fd, "user: %s\n", "(null)");
+		fclose(fd);
 		/* Call shell */
 		multishell_single(forkno);
 	}
 }
 
 void kill_shell(int shell_pid) {
-	/* TODO */
+	kill(shell_pid, SIGKILL);
 	shells_forked--;
 }
 
@@ -1166,7 +1199,10 @@ void monitor_multishell() {
 		shells_forked++;
 	}
 
-	/* TODO: Monitor more shell requests, and allocate/deallocate them when they are asked for */
+	/* Monitor more shell requests, and allocate/deallocate them when they are asked for */
+	FILE * shmon = fopen("/procn/shmon","w"); /* Use this file to request for more shells */
+	fclose(shmon); /*XXX need to use folder proc,not procn, fix this on the kernel*/
+
 	while(!exit_application) {
 
 	}
@@ -1174,16 +1210,15 @@ void monitor_multishell() {
 }
 
 int main(int argc, char ** argv) {
-
 	_login_shell = 0;
 
+	/* Read some arguments */
 	static struct option long_opts[] = {
 		{"login",      no_argument,       0, 'l'},
 		{"help",       no_argument,       0, 'h'},
 		{0,0,0,0}
 	};
 
-	/* Read some arguments */
 	int index, c;
 	while ((c = getopt_long(argc, argv, "hl", long_opts, &index)) != -1) {
 		if (!c && long_opts[index].flag == 0)
@@ -1198,15 +1233,10 @@ int main(int argc, char ** argv) {
 	}
 
 	hide_textmode_cursor();
-
 	putenv(TERM_ENV);
 
 	syscall_openpty(&fd_master, &fd_slave, NULL, NULL, NULL);
-
-	terminal = (FILE*)fdopen(fd_slave, "w");
-
-	reinit(0);
-	fflush(stdin);
+	init_ansi();
 
 	if(!fork())
 		monitor_multishell();
