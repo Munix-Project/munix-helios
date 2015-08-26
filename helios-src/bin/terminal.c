@@ -10,6 +10,8 @@
 #include <stdio.h>
 #include <string.h>
 
+/* TODO: FIX Delete and insert */
+
 /************** SECTION 1: ANSI *********************/
 
 #ifdef _KERNEL_
@@ -553,7 +555,8 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 
 #define USE_BELL 0
 
-#define MULTISHELL_STARTUP_COUNT 1
+#define MULTISHELL_STARTUP_COUNT 2
+static int shells_forked = 0;
 
 /* master and slave pty descriptors */
 static int fd_master, fd_slave;
@@ -952,6 +955,10 @@ void key_event(int ret, key_event_t * event) {
 	if (ret) {
 		if ((event->modifiers & KEY_MOD_LEFT_ALT) || (event->modifiers & KEY_MOD_RIGHT_ALT))
 			handle_input('\033');
+		if (((event->modifiers & KEY_MOD_LEFT_SHIFT) || (event->modifiers & KEY_MOD_RIGHT_SHIFT)) && event->key == '\t') {
+				handle_input_s("\033[Z");
+				return;
+			}
 		handle_input(event->key);
 	} else {
 		if (event->action == KEY_ACTION_UP) return;
@@ -1010,6 +1017,18 @@ void key_event(int ret, key_event_t * event) {
 			case KEY_PAGE_DOWN:
 				handle_input_s("\033[6~");
 				break;
+			case KEY_HOME:
+				handle_input_s("\033OH");
+				break;
+			case KEY_END:
+				handle_input_s("\033OF");
+				break;
+			case KEY_DEL:
+				handle_input_s("\e[1C");
+				break;
+			case KEY_INSERT:
+				handle_input_s("\033[2~");
+				break;
 		}
 	}
 }
@@ -1020,22 +1039,12 @@ void * wait_for_exit(void * garbage) {
 		pid = waitpid(-1, NULL, 0);
 	} while (pid == -1 && errno == EINTR);
 	/* Clean up */
-	exit_application = 1;
+	//exit_application = 1;
 	/* Exit */
 	char exit_message[] = "[Process 'terminal' terminated]\n";
 	write(fd_slave, exit_message, sizeof(exit_message));
+	pthread_exit(0);
 	return NULL;
-}
-
-void usage(char * argv[]) {
-	printf(
-			"VGA Terminal Emulator\n"
-			"\n"
-			"usage: %s [-b] [-F] [-h]\n"
-			"\n"
-			" -h --help       \033[3mShow this help message.\033[0m\n"
-			"\n",
-			argv[0]);
 }
 
 term_callbacks_t term_callbacks = {
@@ -1122,24 +1131,40 @@ static void hide_textmode_cursor() {
 	outb(0x3D5, 0xFF);
 }
 
-void multishell_single() {
-	/* TODO: Launch login with a parameter of 'quiet' */
-	char * tokens[] = {"/bin/login", "-q", NULL};
-	execvp(tokens[0], tokens);
+void multishell_single(int forkno) {
+	if(forkno > 0) {
+		char opt[8];
+		sprintf(opt,"-q %d", forkno);
+		char * tokens[] = {"/bin/login", opt, NULL};
+		execvp(tokens[0], tokens);
+	} else {
+		char * tokens[] = {"/bin/login", NULL};
+		execvp(tokens[0], tokens);
+	}
 }
 
-void spawn_shell(){
-	if(!fork()) multishell_single();
+void spawn_shell(int forkno){
+	if(!fork()){
+		/* Redirect IO */
+		for(int i=0;i<3;i++)
+			dup2(fd_slave, STDIN_FILENO + i);
+
+		/* Call shell */
+		multishell_single(forkno);
+	}
 }
 
 void kill_shell(int shell_pid) {
 	/* TODO */
+	shells_forked--;
 }
 
-void * monitor_multishell(void * garbage) {
+void monitor_multishell() {
 	/* Create one shell */
-	for(int i=0;i<MULTISHELL_STARTUP_COUNT;i++)
-		spawn_shell();
+	for(int i=0;i < MULTISHELL_STARTUP_COUNT;i++) {
+		spawn_shell(i);
+		shells_forked++;
+	}
 
 	/* TODO: Monitor more shell requests, and allocate/deallocate them when they are asked for */
 	while(!exit_application) {
@@ -1167,12 +1192,6 @@ int main(int argc, char ** argv) {
 			case 'l':
 				_login_shell = 1;
 				break;
-			case 'h':
-				usage(argv);
-				return 0;
-				break;
-			case '?':
-				break;
 			default:
 				break;
 		}
@@ -1189,55 +1208,24 @@ int main(int argc, char ** argv) {
 	reinit(0);
 	fflush(stdin);
 
-	int pid = getpid();
-	uint32_t f = fork();
+	if(!fork())
+		monitor_multishell();
 
-	if (getpid() != pid) {
-		dup2(fd_slave, 0);
-		dup2(fd_slave, 1);
-		dup2(fd_slave, 2);
+	pthread_t wait_for_exit_thread;
+	pthread_create(&wait_for_exit_thread, NULL, wait_for_exit, NULL);
 
-		if (argv[optind] != NULL) {
-			char * tokens[] = {argv[optind], NULL};
-			execvp(tokens[0], tokens);
-			fprintf(stderr, "Failed to launch requested startup application.\n");
-		} else {
-			if (_login_shell) {
-				char * tokens[] = {"/bin/login", NULL};
-				execvp(tokens[0], tokens);
-			} else {
-				char * shell = getenv("SHELL");
-				if (!shell) shell = "/bin/sh"; /* fallback */
-				char * tokens[] = {shell,NULL};
-				execvp(tokens[0], tokens);
-			}
-		}
+	pthread_t handle_incoming_thread;
+	pthread_create(&handle_incoming_thread, NULL, handle_incoming, NULL);
 
-		exit_application = 1;
+	pthread_t cursor_blink_thread;
+	pthread_create(&cursor_blink_thread, NULL, blink_cursor, NULL);
 
-		return 1;
-	} else {
-		child_pid = f;
-
-		pthread_t wait_for_exit_thread;
-		pthread_create(&wait_for_exit_thread, NULL, wait_for_exit, NULL);
-
-		pthread_t handle_incoming_thread;
-		pthread_create(&handle_incoming_thread, NULL, handle_incoming, NULL);
-
-		pthread_t cursor_blink_thread;
-		pthread_create(&cursor_blink_thread, NULL, blink_cursor, NULL);
-
-		pthread_t monitor_multishell_th;
-		pthread_create(&monitor_multishell_th, NULL, monitor_multishell, NULL);
-
-		unsigned char buf[1024];
-		while (!exit_application) {
-			int r = read(fd_master, buf, 1024);
-			for (uint32_t i = 0; i < r; ++i)
-				ansi_put(ansi_state, buf[i]);
-		}
-
+	unsigned char buf[1024];
+	while (!exit_application) {
+		int r = read(fd_master, buf, 1024);
+		for (uint32_t i = 0; i < r; ++i)
+			ansi_put(ansi_state, buf[i]);
 	}
+
 	return 0;
 }

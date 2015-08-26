@@ -311,50 +311,62 @@ int kbd_scancode(key_event_state_t * state, unsigned char c, key_event_t * event
 
 		int down = (event->action == KEY_ACTION_DOWN);
 		switch (c) {
-			case 0x5B:
-				state->k_super  = down;
-				state->kl_super = down;
-				event->keycode  = KEY_LEFT_SUPER;
-				SET_UNSET(event->modifiers, KEY_MOD_LEFT_SUPER, down);
-				break;
-			case 0x5C:
-				state->k_super  = down;
-				state->kr_super = down;
-				event->keycode  = KEY_RIGHT_SUPER;
-				SET_UNSET(event->modifiers, KEY_MOD_RIGHT_SUPER, down);
-				break;
-			case 0x1D:
-				state->kr_ctrl  = down;
-				state->k_ctrl   = down;
-				event->keycode  = KEY_RIGHT_CTRL;
-				SET_UNSET(event->modifiers, KEY_MOD_RIGHT_CTRL, down);
-				break;
-			case 0x38:
-				state->kr_alt   = down;
-				state->k_alt    = down;
-				event->keycode  = KEY_RIGHT_ALT;
-				SET_UNSET(event->modifiers, KEY_MOD_RIGHT_ALT, down);
-				break;
-			case 0x48:
-				event->keycode = KEY_ARROW_UP;
-				break;
-			case 0x4D:
-				event->keycode = KEY_ARROW_RIGHT;
-				break;
-			case 0x50:
-				event->keycode = KEY_ARROW_DOWN;
-				break;
-			case 0x4B:
-				event->keycode = KEY_ARROW_LEFT;
-				break;
-			case 0x49:
-				event->keycode = KEY_PAGE_UP;
-				break;
-			case 0x51:
-				event->keycode = KEY_PAGE_DOWN;
-				break;
-			default:
-				break;
+		case 0x5B:
+			state->k_super  = down;
+			state->kl_super = down;
+			event->keycode  = KEY_LEFT_SUPER;
+			SET_UNSET(event->modifiers, KEY_MOD_LEFT_SUPER, down);
+			break;
+		case 0x5C:
+			state->k_super  = down;
+			state->kr_super = down;
+			event->keycode  = KEY_RIGHT_SUPER;
+			SET_UNSET(event->modifiers, KEY_MOD_RIGHT_SUPER, down);
+			break;
+		case 0x1D:
+			state->kr_ctrl  = down;
+			state->k_ctrl   = down;
+			event->keycode  = KEY_RIGHT_CTRL;
+			SET_UNSET(event->modifiers, KEY_MOD_RIGHT_CTRL, down);
+			break;
+		case 0x38:
+			state->kr_alt   = down;
+			state->k_alt    = down;
+			event->keycode  = KEY_RIGHT_ALT;
+			SET_UNSET(event->modifiers, KEY_MOD_RIGHT_ALT, down);
+			break;
+		case 0x48:
+			event->keycode = KEY_ARROW_UP;
+			break;
+		case 0x4D:
+			event->keycode = KEY_ARROW_RIGHT;
+			break;
+		case 0x47:
+			event->keycode = KEY_HOME;
+			break;
+		case 0x49:
+			event->keycode = KEY_PAGE_UP;
+			break;
+		case 0x4B:
+			event->keycode = KEY_ARROW_LEFT;
+			break;
+		case 0x4F:
+			event->keycode = KEY_END;
+			break;
+		case 0x50:
+			event->keycode = KEY_ARROW_DOWN;
+			break;
+		case 0x51:
+			event->keycode = KEY_PAGE_DOWN;
+			break;
+		case 0x52:
+			event->keycode = KEY_INSERT;
+			break;
+		case 0x53:
+			event->keycode = KEY_DEL;
+			break;
+		default:
+			break;
 		}
 
 		state->kbd_s_state = 0;

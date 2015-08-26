@@ -3,6 +3,7 @@
  * of the NCSA / University of Illinois License - see LICENSE.md
  * Copyright (C) 2015 Dale Weiler
  *
+ * rline - a line reading library.
  */
 
 #include <stdio.h>
@@ -13,17 +14,15 @@
 
 void rline_redraw(rline_context_t * context) {
 	printf("\033[u%s\033[K", context->buffer);
-	for (int i = context->offset; i < context->collected; ++i) {
+	for (int i = context->offset; i < context->collected; ++i)
 		printf("\033[D");
-	}
 	fflush(stdout);
 }
 
 void rline_redraw_clean(rline_context_t * context) {
 	printf("\033[u%s", context->buffer);
-	for (int i = context->offset; i < context->collected; ++i) {
+	for (int i = context->offset; i < context->collected; ++i)
 		printf("\033[D");
-	}
 	fflush(stdout);
 }
 
@@ -54,13 +53,6 @@ int rline(char * buffer, int buf_size, rline_callbacks_t * callbacks) {
 				printf("^C\n");
 				context.buffer[0] = '\0';
 				return 0;
-			case KEY_CTRL_D:
-				if (context.collected == 0) {
-					printf("exit\n");
-					sprintf(context.buffer, "exit\n");
-					return strlen(context.buffer);
-				}
-				continue;
 			case KEY_CTRL_R:
 				if (callbacks->rev_search) {
 					callbacks->rev_search(&context);
@@ -69,15 +61,13 @@ int rline(char * buffer, int buf_size, rline_callbacks_t * callbacks) {
 				continue;
 			case KEY_ARROW_UP:
 			case KEY_CTRL_P:
-				if (callbacks->key_up) {
+				if (callbacks->key_up)
 					callbacks->key_up(&context);
-				}
 				continue;
 			case KEY_ARROW_DOWN:
 			case KEY_CTRL_N:
-				if (callbacks->key_down) {
+				if (callbacks->key_down)
 					callbacks->key_down(&context);
-				}
 				continue;
 			case KEY_ARROW_RIGHT:
 				if (callbacks->key_right) {
@@ -101,11 +91,52 @@ int rline(char * buffer, int buf_size, rline_callbacks_t * callbacks) {
 					}
 				}
 				continue;
+			case KEY_CTRL_A:
+			case KEY_HOME:
+				while (context.offset > 0) {
+					printf("\033[D");
+					context.offset--;
+				}
+				fflush(stdout);
+				continue;
+			case KEY_CTRL_E:
+			case KEY_END:
+				while (context.offset < context.collected) {
+					printf("\033[C");
+					context.offset++;
+				}
+				fflush(stdout);
+				continue;
+			case KEY_CTRL_D:
+				if (context.collected == 0) {
+					printf("exit\n");
+					sprintf(context.buffer, "exit\n");
+					return strlen(context.buffer);
+				}
+				/* Intentional fallthrough */
+			case KEY_DEL:
+				if (context.collected) {
+					if (context.offset == context.collected)
+						continue;
+
+					int remaining = context.collected - context.offset;
+					for (int i = 1; i < remaining; ++i) {
+						printf("%c", context.buffer[context.offset + i]);
+						context.buffer[context.offset + i - 1] = context.buffer[context.offset + i];
+					}
+					printf(" ");
+					for (int i = 0; i < remaining; ++i)
+						printf("\033[D");
+
+					context.collected--;
+					fflush(stdout);
+				}
+				continue;
 			case KEY_BACKSPACE:
 				if (context.collected) {
-					if (!context.offset) {
+					if (!context.offset)
 						continue;
-					}
+
 					printf("\010 \010");
 					if (context.offset != context.collected) {
 						int remaining = context.collected - context.offset;
@@ -125,20 +156,6 @@ int rline(char * buffer, int buf_size, rline_callbacks_t * callbacks) {
 					}
 					fflush(stdout);
 				}
-				continue;
-			case KEY_CTRL_A:
-				while (context.offset > 0) {
-					printf("\033[D");
-					context.offset--;
-				}
-				fflush(stdout);
-				continue;
-			case KEY_CTRL_E:
-				while (context.offset < context.collected) {
-					printf("\033[C");
-					context.offset++;
-				}
-				fflush(stdout);
 				continue;
 			case KEY_CTRL_L: /* ^L: Clear Screen, redraw prompt and buffer */
 				printf("\033[H\033[2J");
@@ -231,5 +248,4 @@ int rline(char * buffer, int buf_size, rline_callbacks_t * callbacks) {
 	context.buffer[context.collected] = '\0';
 	return context.collected;
 }
-
 

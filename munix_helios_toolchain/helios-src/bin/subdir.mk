@@ -37,7 +37,6 @@ C_SRCS += \
 ../helios-src/bin/sleep.c \
 ../helios-src/bin/spawn.c \
 ../helios-src/bin/stat.c \
-../helios-src/bin/sudo.c \
 ../helios-src/bin/syscall.c \
 ../helios-src/bin/terminal.c \
 ../helios-src/bin/touch.c \
@@ -81,7 +80,6 @@ OBJS += \
 ./helios-src/bin/sleep.o \
 ./helios-src/bin/spawn.o \
 ./helios-src/bin/stat.o \
-./helios-src/bin/sudo.o \
 ./helios-src/bin/syscall.o \
 ./helios-src/bin/terminal.o \
 ./helios-src/bin/touch.o \
@@ -125,7 +123,6 @@ C_DEPS += \
 ./helios-src/bin/sleep.d \
 ./helios-src/bin/spawn.d \
 ./helios-src/bin/stat.d \
-./helios-src/bin/sudo.d \
 ./helios-src/bin/syscall.d \
 ./helios-src/bin/terminal.d \
 ./helios-src/bin/touch.d \
@@ -182,14 +179,7 @@ helios-src/bin/pstree.o: ../helios-src/bin/pstree.c
 helios-src/bin/sh.o: ../helios-src/bin/sh.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O0 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/rline /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sh.d" -o "$@" "$<"
-	@echo 'Finished building: $<'
-	@echo ' '
-
-helios-src/bin/sudo.o: ../helios-src/bin/sudo.c
-	@echo 'Building file: $<'
-	@echo 'Invoking: Cross GCC Compiler'
-	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2 /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sudo.d" -o "$@" "$<"
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O0 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2 /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/rline /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sh.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

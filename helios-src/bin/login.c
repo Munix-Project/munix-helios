@@ -23,34 +23,55 @@
 
 static uint8_t already_saw_motd = 0;
 uint32_t child = 0;
+uint32_t shellno = -1;
 
 void sig_pass(int sig) {
 	/* Pass onto the shell */
-	if (child) {
+	if (child)
 		kill(child, sig);
-	}
 	/* Else, ignore */
 }
 
 void sig_segv(int sig) {
 	printf("Segmentation fault.\n");
 	exit(127 + sig);
-	/* no return */
+}
+
+uint8_t multishell_cont = 0;
+
+void sig_tstp(int sig) {
+	multishell_cont = 0;
+	if (child) kill(child, sig);
+	while(!multishell_cont) usleep(100); /*wait for SIGCONT*/
+}
+
+void sig_cont(int sig) {
+	multishell_cont = 1;
 }
 
 int main(int argc, char ** argv) {
-	/* TODO: Add quiet login option */
-	if(argc>1) {
-		for(;;);
-	}
-	system("uname -a");
-	system("cat /etc/intro");
-	fflush(stdout);
-	printf("\n");
-
 	signal(SIGINT, sig_pass);
 	signal(SIGWINCH, sig_pass);
 	signal(SIGSEGV, sig_segv);
+	signal(SIGTSTP, sig_tstp);
+	signal(SIGCONT, sig_cont);
+
+	if(argc>1) {
+		int c;
+		while((c = getopt(argc, argv, "q:")) != -1)
+			switch(c){
+			case 'q':
+				shellno = atoi(argv[1]);
+				/* Wait for the multishell monitor to allow this shellno to continue */
+				sig_tstp(SIGCONT);
+				break;
+			}
+	} else {
+		system("uname -a");
+		system("cat /etc/intro");
+		fflush(stdout);
+		printf("\n");
+	}
 
 	while (1) {
 		char * username = malloc(sizeof(char) * 1024);
@@ -59,7 +80,9 @@ int main(int argc, char ** argv) {
 		char _hostname[256];
 		syscall_gethostname(_hostname);
 
-		printf("\e[47;30m%s login:\e[0m ", _hostname); fflush(stdout);
+		/* Ask for username */
+		printf("\e[47;30m%s login:\e[0m ", _hostname);
+		fflush(stdout);
 		char * r = fgets(username, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
@@ -69,8 +92,9 @@ int main(int argc, char ** argv) {
 		}
 		username[strlen(username)-1] = '\0';
 
-		printf("\e[47;30m  password:  \e[0m "); fflush(stdout);
-
+		/* Ask for password */
+		printf("\e[47;30m  password:  \e[0m ");
+		fflush(stdout);
 		/* Disable echo */
 		struct termios old, new;
 		tcgetattr(fileno(stdin), &old);
@@ -89,6 +113,8 @@ int main(int argc, char ** argv) {
 		password[strlen(password)-1] = '\0';
 		tcsetattr(fileno(stdin), TCSAFLUSH, &old);
 		fprintf(stdout, "\n");
+
+		/* Done */
 
 		int uid = helios_auth(username, password);
 		if (uid < 0) {

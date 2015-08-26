@@ -94,12 +94,14 @@ void print_process_tree_node(tree_node_t * node, size_t depth, int indented, int
 		depth += 3;
 	}
 
-	printf(proc->name);
+	printf("%s(%d)", proc->name, proc->pid);
 
 	if (!node->children->length) {
 		printf("\n");
 	} else {
-		depth += strlen(proc->name);
+		char itos[5];
+		sprintf(itos, "(%d)", proc->pid);
+		depth += strlen(proc->name) + strlen(itos);
 
 		int t = 0;
 		/* Recursively print the children */
