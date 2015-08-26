@@ -28,6 +28,9 @@
 #include <list.h>
 #include <kbd.h>
 #include <rline.h>
+#include <syscall.h>
+
+#include <spinlock.h>
 
 #define OS_HOSTNAME "helios"
 
@@ -1062,9 +1065,49 @@ uint32_t shell_cmd_togtime(int argc, char * argv[]) {
 	return 0;
 }
 
+int shm_spinlock = 0;
+
+uint32_t shmon_nextshell(char * switch_user) {
+	size_t s = 10;
+	char * shm;
+
+	if(switch_user!=NULL) {
+		/* Send switch_user to shmon, and wait for pid to be set */
+		shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
+		char msg[20];
+		sprintf(msg, "-2:%s", switch_user);
+		strcpy(shm, msg);
+
+		while(shm[0] != 0); /* Wait for monitor to read and clear out the buffer */
+	}
+
+	/* At this moment, we got ourselves the right PID for the next shell */
+	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
+	char * nextshell_pid = (char*)(strchr((char*) (strchr(shm, ':') + 1), ':') + 1); /* fetch 2nd match of ':' */
+	return atoi(nextshell_pid);
+}
+
+void shmon_request_new() {
+	size_t s = 0;
+	char * shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
+	strcpy(shm, "1");
+}
+
 uint32_t shell_cmd_su(int argc, char * argv[]) {
-	/* TODO: Find next available shell's pid */
-	int next_sh_pid = atoi(argv[1]);
+	/*
+	 * TODO: Find next available shell's pid (unless a username that's already logged in was specified)
+	 * if the username specified is already logged in, switch to that shell instead of getting a new one
+	 */
+	char * switch_user = NULL;
+	if(argc > 1)
+		switch_user = argv[1];
+	int next_sh_pid = shmon_nextshell(switch_user);
+
+	if(next_sh_pid < 0 && switch_user!=NULL) {
+		/* User is already logged in */
+		fprintf(stderr, "the account '%s' is already logged in\n", switch_user);
+		return 1;
+	}
 
 	/* Grab owner of the shell */
 	char dir[16];
@@ -1084,7 +1127,8 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 		/* We're now acting as the owner of the shell */
 		kill(next_sh_pid, SIGCONT);
 
-		/* TODO: Request another shell */
+		/* Request another shell */
+		shmon_request_new();
 
 		/* PAUSE THIS SHELL */
 		sig_tstp(SIGTSTP);

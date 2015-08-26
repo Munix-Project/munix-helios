@@ -12,7 +12,6 @@ C_SRCS += \
 ../helios-src/bin/cpudet.c \
 ../helios-src/bin/echo.c \
 ../helios-src/bin/env.c \
-../helios-src/bin/ex.c \
 ../helios-src/bin/find.c \
 ../helios-src/bin/free.c \
 ../helios-src/bin/grep.c \
@@ -58,7 +57,6 @@ OBJS += \
 ./helios-src/bin/cpudet.o \
 ./helios-src/bin/echo.o \
 ./helios-src/bin/env.o \
-./helios-src/bin/ex.o \
 ./helios-src/bin/find.o \
 ./helios-src/bin/free.o \
 ./helios-src/bin/grep.o \
@@ -104,7 +102,6 @@ C_DEPS += \
 ./helios-src/bin/cpudet.d \
 ./helios-src/bin/echo.d \
 ./helios-src/bin/env.d \
-./helios-src/bin/ex.d \
 ./helios-src/bin/find.d \
 ./helios-src/bin/free.d \
 ./helios-src/bin/grep.d \
@@ -195,7 +192,7 @@ helios-src/bin/sh.o: ../helios-src/bin/sh.c
 helios-src/bin/terminal.o: ../helios-src/bin/terminal.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/graphics/graphics /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/pthread -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/terminal.d" -o "$@" "$<"
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/hashmap /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/graphics/graphics /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/pthread -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/terminal.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

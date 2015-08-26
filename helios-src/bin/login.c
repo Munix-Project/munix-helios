@@ -22,6 +22,8 @@
 #define LINE_LEN 1024
 
 static uint8_t already_saw_motd = 0;
+char * passed_username;
+uint8_t use_passed_username = 0;
 uint32_t child = 0;
 uint32_t shellno = -1;
 
@@ -66,13 +68,14 @@ int main(int argc, char ** argv) {
 
 	if(argc>1) {
 		int c;
-		while((c = getopt(argc, argv, "q:")) != -1)
+		while((c = getopt(argc, argv, "u:q:")) != -1)
 			switch(c){
 			case 'q':
 				shellno = atoi(argv[1]);
 				/* Wait for the multishell monitor to allow this shellno to continue */
 				sig_tstp(SIGCONT);
 				break;
+			case 'u': use_passed_username = 1; passed_username = optarg; break;
 			}
 	} else {
 		system("uname -a");
@@ -91,19 +94,27 @@ int main(int argc, char ** argv) {
 		syscall_gethostname(_hostname);
 
 		/* Ask for username */
-		printf("\e[47;30m%s login:\e[0m ", _hostname);
-		fflush(stdout);
-		char * r = fgets(username, 1024, stdin);
-		if (!r) {
-			clearerr(stdin);
-			fprintf(stderr, "\n");
-			fprintf(stderr, "\nLogin failed.\n");
-			continue;
+		char * r;
+		if(!use_passed_username) {
+			printf("\e[47;30m%s login:\e[0m ", _hostname);
+			fflush(stdout);
+			r = fgets(username, 1024, stdin);
+			if (!r) {
+				clearerr(stdin);
+				fprintf(stderr, "\n");
+				fprintf(stderr, "\nLogin failed.\n");
+				continue;
+			}
+			username[strlen(username)-1] = '\0';
+
+		} else {
+			strcpy(username, passed_username);
 		}
-		username[strlen(username)-1] = '\0';
 
 		/* Ask for password */
-		printf("\e[47;30m  password:  \e[0m ");
+		char for_msg[30];
+		sprintf(for_msg, " for %s", username);
+		printf("\e[47;30m  password%s:  \e[0m ", use_passed_username ? for_msg : "");
 		fflush(stdout);
 		/* Disable echo */
 		struct termios old, new;

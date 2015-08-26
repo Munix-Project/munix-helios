@@ -5,7 +5,8 @@
 #define MAX_MULTISHELL 10
 #define SHM_SHELLMON_IN "shm_shellmon_in"
 #define SHM_SHELLMON_OUT "shm_shellmon_out"
-#define SHM_CTRL_KILL "-1"
+#define SHM_CTRL_KILL '1'
+#define SHM_CTRL_GRAB_PID '2'
 
 #define DECL_SYSCALL0(fn)                int syscall_##fn()
 #define DECL_SYSCALL1(fn,p1)             int syscall_##fn(p1)

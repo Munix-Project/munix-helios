@@ -553,11 +553,17 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 #include <kbd.h>
 #include <graphics/vga-color.h>
 #include <syscall.h>
+#include <list.h>
+#include <hashmap.h>
 
 #define USE_BELL 0
 
+/* Multi shell variables and constants */
 #define MULTISHELL_STARTUP_COUNT 2
 static int shells_forked = 0;
+int shm_lock = 0;
+list_t * shellpid_hash;
+list_t * multishell_sessions;
 
 /* master and slave pty descriptors */
 static int fd_master, fd_slave;
@@ -582,33 +588,18 @@ term_state_t * ansi_state = NULL;
 char * shm_monitor_input;
 char * shm_monitor_output;
 
-void reinit(); /* Defined way further down */
-void term_redraw_cursor();
+volatile int exit_application = 0;
+unsigned short * textmemptr = (unsigned short *)0xB8000;
+#define INPUT_SIZE 1024
+char input_buffer[INPUT_SIZE];
+int  input_collected = 0;
+uint32_t child_pid = 0;
 
-/* Cursor bink timer */
-static unsigned int timer_tick = 0;
-
-void term_clear();
-
-wchar_t box_chars_in[] = L"▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥▄";
-wchar_t box_chars_out[] =  {176,0,0,0,0,248,241,0,0,217,191,218,192,197,196,196,196,196,196,195,180,193,194,179,243,242,220};
-
-static int color_distance(uint32_t a, uint32_t b) {
-	int a_r = (a & 0xFF0000) >> 16;
-	int a_g = (a & 0xFF00) >> 8;
-	int a_b = (a & 0xFF);
-
-	int b_r = (b & 0xFF0000) >> 16;
-	int b_g = (b & 0xFF00) >> 8;
-	int b_b = (b & 0xFF);
-
-	int distance = 0;
-	distance += abs(a_r - b_r) * 3;
-	distance += abs(a_g - b_g) * 6;
-	distance += abs(a_b - b_b) * 10;
-
-	return distance;
-}
+/* ANSI-to-VGA */
+char vga_to_ansi[] = {
+	0, 4, 2, 6, 1, 5, 3, 7,
+	8,12,10,14, 9,13,11,15
+};
 
 static uint32_t vga_base_colors[] = {
 	0x000000,
@@ -628,6 +619,31 @@ static uint32_t vga_base_colors[] = {
 	0x55FFFF,
 	0xFFFFFF,
 };
+
+/* Cursor blink timer */
+static unsigned int timer_tick = 0;
+
+wchar_t box_chars_in[] = L"▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥▄";
+wchar_t box_chars_out[] =  {176,0,0,0,0,248,241,0,0,217,191,218,192,197,196,196,196,196,196,195,180,193,194,179,243,242,220};
+
+void term_clear();
+
+static int color_distance(uint32_t a, uint32_t b) {
+	int a_r = (a & 0xFF0000) >> 16;
+	int a_g = (a & 0xFF00) >> 8;
+	int a_b = (a & 0xFF);
+
+	int b_r = (b & 0xFF0000) >> 16;
+	int b_g = (b & 0xFF00) >> 8;
+	int b_b = (b & 0xFF);
+
+	int distance = 0;
+	distance += abs(a_r - b_r) * 3;
+	distance += abs(a_g - b_g) * 6;
+	distance += abs(a_b - b_b) * 10;
+
+	return distance;
+}
 
 static int is_gray(uint32_t a) {
 	int a_r = (a & 0xFF0000) >> 16;
@@ -651,9 +667,6 @@ static int best_match(uint32_t a) {
 	return best_index;
 }
 
-
-volatile int exit_application = 0;
-
 static void set_term_font_size(float s) {
 	/* do nothing */
 }
@@ -667,20 +680,12 @@ void input_buffer_stuff(char * str) {
 	write(fd_master, str, s);
 }
 
-unsigned short * textmemptr = (unsigned short *)0xB8000;
 void placech(unsigned char c, int x, int y, int attr) {
 	unsigned short *where;
 	unsigned att = attr << 8;
 	where = textmemptr + (y * 80 + x);
 	*where = c | att;
 }
-
-/* ANSI-to-VGA */
-char vga_to_ansi[] = {
-	0, 4, 2, 6, 1, 5, 3, 7,
-	8,12,10,14, 9,13,11,15
-};
-
 uint32_t ununicode(uint32_t c) {
 	wchar_t * w = box_chars_in;
 	while (*w) {
@@ -935,16 +940,10 @@ void term_clear(int i) {
 	}
 }
 
-#define INPUT_SIZE 1024
-char input_buffer[INPUT_SIZE];
-int  input_collected = 0;
-
 void clear_input() {
 	memset(input_buffer, 0x0, INPUT_SIZE);
 	input_collected = 0;
 }
-
-uint32_t child_pid = 0;
 
 void handle_input(char c) {
 	write(fd_master, &c, 1);
@@ -1109,6 +1108,7 @@ void * handle_incoming(void * garbage) {
 			key_event(kbd_scancode(&kbd_state, c, &event), &event);
 
 	pthread_exit(0);
+	return NULL;
 }
 
 void * blink_cursor(void * garbage) {
@@ -1121,6 +1121,7 @@ void * blink_cursor(void * garbage) {
 		usleep(90000);
 	}
 	pthread_exit(0);
+	return NULL;
 }
 
 void outb(uint16_t port, uint16_t data) {
@@ -1134,13 +1135,21 @@ static void hide_textmode_cursor() {
 	outb(0x3D5, 0xFF);
 }
 
-void multishell_single(int forkno) {
+void multishell_single(int forkno, char * user) {
 	if(forkno > 0) {
-		char opt[8];
-		sprintf(opt,"-q %d", forkno);
-		char * tokens[] = {"/bin/login", opt, NULL};
-		execvp(tokens[0], tokens);
-		system("reboot");
+		if(user==NULL) {
+			char opt[8];
+			sprintf(opt,"-q %d", forkno);
+			char * tokens[] = {"/bin/login", opt, NULL};
+			execvp(tokens[0], tokens);
+		} else {
+			char opt[8];
+			sprintf(opt,"-q %d", forkno);
+			char usr_opt[20];
+			sprintf("-u %s", user);
+			char * tokens[] = {"/bin/login", opt, usr_opt, NULL};
+			execvp(tokens[0], tokens);
+		}
 		_exit(EXIT_SUCCESS);
 	} else {
 		char * tokens[] = {"/bin/login", NULL};
@@ -1149,9 +1158,7 @@ void multishell_single(int forkno) {
 	}
 }
 
-int shellpid_list[MAX_MULTISHELL];
-
-void spawn_shell(int forkno){
+void spawn_shell(int forkno, char * user){
 	int shellpid = fork();
 
 	if(!shellpid) {
@@ -1163,63 +1170,108 @@ void spawn_shell(int forkno){
 		multishell_single(forkno);
 	}
 
-	shellpid_list[forkno] = shellpid;
+	char forkno_str[10];
+	sprintf(forkno_str, "%d", forkno);
+	hashmap_set(shellpid_hash, forkno_str, shellpid);
+	if(user!=NULL)
+		hashmap_set(multishell_sessions, user, shellpid);
 }
 
-void kill_shell(int shell_pid, int shellno) {
-	shellpid_list[shellno] = -1;
+void kill_shell(int shell_pid, char * key) {
+	hashmap_remove(shellpid_hash, key);
 	kill(shell_pid, SIGKILL);
 	shells_forked--;
 }
 
-void update_shm_shmon(){
-	char nextshell_str[24];
-	memset(nextshell_str, 0, 24);
-	sprintf(nextshell_str,"nextshell:%d", shells_forked);
-	strcpy(shm_monitor_input, nextshell_str);
+void update_shm_shmon(int pid){
+	char shmon_info[24];
+
+	char newshell_str[10];
+	sprintf(newshell_str, "newshell:%d", pid);
+
+	char forkno_str[5];
+	sprintf(forkno_str, "%d", shells_forked - 1);
+
+	sprintf(shmon_info,"%s\nnextshell:%d", newshell_str, hashmap_get(shellpid_hash, forkno_str));
+
+	strcpy(shm_monitor_input, shmon_info);
 }
 
 void monitor_multishell() {
-	memset(shellpid_list, -1, MAX_MULTISHELL);
+	shellpid_hash = (list_t*)hashmap_create(MAX_MULTISHELL);
+	multishell_sessions = (list_t*)hashmap_create(MAX_MULTISHELL);
 
 	/* Create two shells at startup */
 	for(int i=0;i < MULTISHELL_STARTUP_COUNT;i++) {
-		spawn_shell(i);
+		spawn_shell(i, NULL);
 		shells_forked++;
 	}
 
+	/* Setup shared memory: */
 	size_t shmon_s = 24;
 	/* read only from other processes perspective */
 	shm_monitor_input = (char *) syscall_shm_obtain(SHM_SHELLMON_IN, &shmon_s);
 	/* write only from other processes perspective */
 	shm_monitor_output = (char *) syscall_shm_obtain(SHM_SHELLMON_OUT, &shmon_s);
-
 	memset(shm_monitor_output, 0, shmon_s);
-	update_shm_shmon();
+	update_shm_shmon(shells_forked);
 
+	/* Monitor multishell requests: */
 	while(!exit_application) {
+		/* Use a lock/mutex on the shared memory resource */
+		spin_lock(&shm_lock);
 		if(shm_monitor_output[0]!=0) {
 			/* Process request */
-			if(shm_monitor_output[0] == SHM_CTRL_KILL[0] && shm_monitor_output[1] == SHM_CTRL_KILL[1]) {
-				/* Kill a shell */
-				char * shellno_str = strchr(shm_monitor_output, ':') + 1;
-				int shellno = atoi(shellno_str);
+			if(shm_monitor_output[0] == '-') {
+				if(shm_monitor_output[1] == SHM_CTRL_KILL) {
+					/* Kill a shell */
+					char * shellno_str = strchr(shm_monitor_output, ':') + 1;
 
-				/* grab shell pid from shellno */
-				int shellpid = shellpid_list[shellno];
-				kill_shell(shellpid, shellno);
-			} else
-				spawn_shell(shells_forked++);
+					/* grab shell pid from shellno */
+					int shellpid = (int)hashmap_get(shellpid_hash, shellno_str);
+					kill_shell(shellpid, shellno_str);
+				} else if(shm_monitor_output[1] == SHM_CTRL_GRAB_PID){
+					/*
+					 * Re arrange the PID for a certain user, this means we're not gonna
+					 * grab the next brand new shell where no one is logged in
+					 */
 
-			memset(shm_monitor_output, 0 , shmon_s);
+					/* Read the user from shared memory */
+					char * user = (char*)strchr(shm_monitor_output, ':') + 1;
+					int ret_pid = shells_forked;
 
-			/* Update shm_monitor_input with new info */
-			update_shm_shmon();
+					/* See if he is already logged (through the hashmap) */
+					uint8_t is_logged = 0;
+					list_t * keys = hashmap_keys(multishell_sessions);
+					foreach(key, keys) {
+						if(!strcmp(key, user)){
+							is_logged = 1;
+							ret_pid = (int)hashmap_get(multishell_sessions, key);
+							break;
+						}
+					}
+
+					/* return the user's pid instead of the new one (if he's logged in) */
+					if(is_logged){
+						update_shm_shmon(ret_pid);
+					} else {
+						/* else he isn't, create a shell and add this user to the hashmap */
+						spawn_shell(shells_forked++, user);
+						update_shm_shmon(shells_forked);
+					}
+				}
+			} else {
+				spawn_shell(shells_forked++, NULL);
+				/* Update shm_monitor_input with new info */
+				update_shm_shmon(shells_forked);
+			}
 		}
-
-		usleep(1000);
+		memset(shm_monitor_output, 0 , shmon_s);
+		spin_unlock(&shm_lock);
 	}
 
+	hashmap_free(multishell_sessions);
+	hashmap_free(shellpid_hash);
 	syscall_shm_release(SHM_SHELLMON_IN);
 	syscall_shm_release(SHM_SHELLMON_OUT);
 
