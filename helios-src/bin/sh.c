@@ -7,7 +7,6 @@
 
 /* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */
 /* TODO: Add 'sub-function' for shell for when the user presses tab while typing a command and a list of files show up */
-/* TODO: Complete su */
 
 #include <stdio.h>
 #include <stdint.h>
@@ -20,17 +19,15 @@
 #include <getopt.h>
 #include <termios.h>
 #include <errno.h>
-
 #include <sys/time.h>
 #include <sys/wait.h>
 #include <sys/utsname.h>
-
 #include <list.h>
 #include <kbd.h>
 #include <rline.h>
 #include <syscall.h>
-
 #include <spinlock.h>
+#include <pwd.h>
 
 #define OS_HOSTNAME "helios"
 
@@ -61,6 +58,7 @@ int    shell_interactive = 1;
 int    shell_force_raw   = 0;
 
 int pid; /* Process ID of the shell */
+int parent_pid = -1;
 
 char * shell_history_prev(int item);
 
@@ -866,10 +864,47 @@ void show_usage(int argc, char * argv[]) {
 uint8_t sigcont = 0;
 uint8_t reap = 0;
 
+/* Same method used in 'login.c' for listening for a signal
+ * through shared memory */
+int shm_lock = 0;
+char * shm;
+char shm_key[30];
+
+void set_shm() {
+	size_t s = 1;
+	memset(shm_key, 0, 30);
+	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
+	char pid_str[5];
+	memset(pid_str, 0, 5);
+	sprintf(pid_str, "%d", parent_pid);
+	strcat(shm_key, pid_str);
+
+	shm = (char*) syscall_shm_obtain(shm_key, &s);
+	memset(shm, 0, 5);
+}
+
+int listen_to_shm(){
+	int ret = 0;
+	spin_lock(&shm_lock);
+	if(shm[0]!=0){
+		shm[0] = 0;
+		ret = 1;
+	}
+	spin_unlock(&shm_lock);
+	return ret;
+}
+
 void sig_tstp(int sig) {
 	sigcont = 0;
 	if (child) kill(child, sig);
-	while(!sigcont){usleep(100);} /*wait for SIGCONT*/
+	while(!sigcont){
+		if(parent_pid >= 0 && listen_to_shm()) {
+			sigcont = 1;
+			break;
+		}
+
+		usleep(100);
+	} /*wait for SIGCONT*/
 }
 
 void sig_cont(int sig) {
@@ -903,11 +938,14 @@ int main(int argc, char ** argv) {
 
 	if (argc > 1) {
 		int c;
-		while ((c = getopt(argc, argv, "c:v?")) != -1) {
+		while ((c = getopt(argc, argv, "p:c:v?")) != -1) {
 			switch (c) {
 				case 'c':
 					shell_interactive = 0;
 					return shell_exec(optarg, strlen(optarg));
+				case 'p':
+					parent_pid = atoi(optarg);
+					break;
 				case 'v':
 					show_version();
 					return 0;
@@ -917,6 +955,8 @@ int main(int argc, char ** argv) {
 			}
 		}
 	}
+
+	if(parent_pid >= 0) set_shm();
 
 	shell_interactive = 1;
 
@@ -1065,42 +1105,61 @@ uint32_t shell_cmd_togtime(int argc, char * argv[]) {
 	return 0;
 }
 
-int shm_spinlock = 0;
-
 uint32_t shmon_nextshell(char * switch_user) {
-	size_t s = 10;
+	size_t s = 24;
 	char * shm;
 
 	if(switch_user!=NULL) {
 		/* Send switch_user to shmon, and wait for pid to be set */
 		shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
 		char msg[20];
-		sprintf(msg, "-2:%s", switch_user);
+		sprintf(msg, "-%c:%s\n", SHM_CTRL_GRAB_PID, switch_user);
 		strcpy(shm, msg);
 
-		while(shm[0] != 0); /* Wait for monitor to read and clear out the buffer */
+		while(shm[0]) usleep(10000); /* Wait for monitor to read and clear out the buffer */
 	}
 
 	/* At this moment, we got ourselves the right PID for the next shell */
 	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
-	char * nextshell_pid = (char*)(strchr((char*) (strchr(shm, ':') + 1), ':') + 1); /* fetch 2nd match of ':' */
-	return atoi(nextshell_pid);
+	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
+	int nextshell_pid_int = atoi(nextshell_pid);
+	return nextshell_pid_int == parent_pid ? -1 : nextshell_pid_int;
 }
 
-void shmon_request_new() {
-	size_t s = 0;
-	char * shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
-	strcpy(shm, "1");
+void send_kill_msg_login(int pid){
+	size_t s = 1;
+	char shm_key[30];
+	memset(shm_key, 0, 30);
+	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
+	char pid_str[5];
+	memset(pid_str, 0, 5);
+	sprintf(pid_str, "%d", pid);
+	strcat(shm_key, pid_str);
+	char * shm = (char*) syscall_shm_obtain(shm_key, &s);
+
+	shm[0] = 1; /* just a flag */
+	while(shm[0]) usleep(10000);
 }
 
 uint32_t shell_cmd_su(int argc, char * argv[]) {
+	if(argc < 2) {
+		fprintf(stderr, "su: usage: su username\n");
+		return 1;
+	}
+
 	/*
-	 * TODO: Find next available shell's pid (unless a username that's already logged in was specified)
+	 * Find next available shell's pid (unless a username that's already logged in was specified)
 	 * if the username specified is already logged in, switch to that shell instead of getting a new one
+	 * only if he isn't already using it
 	 */
-	char * switch_user = NULL;
-	if(argc > 1)
-		switch_user = argv[1];
+	char * switch_user = argv[1];
+
+	/* Check if switch_user exists */
+	if(switch_user!=NULL && !getpwnam(switch_user)){
+		fprintf(stderr, "the account '%s' does not exist\n", switch_user);
+		return 1;
+	}
+
 	int next_sh_pid = shmon_nextshell(switch_user);
 
 	if(next_sh_pid < 0 && switch_user!=NULL) {
@@ -1109,31 +1168,14 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 		return 1;
 	}
 
-	/* Grab owner of the shell */
-	char dir[16];
-	sprintf(dir,"/proc/%d/status", next_sh_pid);
-	FILE * proc = fopen(dir,"r");
-	int uid = 0; /*XXX*/
-	/* Fetch UID: */
+	usleep(200000);
 
-	fclose(proc);
+	/* Use shared memory instead of signals due to permission problems */
+	send_kill_msg_login(next_sh_pid);
 
-	int status = setuid(uid);
-	if(status < 0 ){
-		fprintf(stderr, "%s: error: couldn't set UID while switching user\n", argv[0]);
-		exit(status);
-		return 1;
-	} else {
-		/* We're now acting as the owner of the shell */
-		kill(next_sh_pid, SIGCONT);
-
-		/* Request another shell */
-		shmon_request_new();
-
-		/* PAUSE THIS SHELL */
-		sig_tstp(SIGTSTP);
-		return 0;
-	}
+	/* PAUSE THIS SHELL */
+	sig_tstp(SIGTSTP);
+	return 0;
 }
 
 uint32_t shell_cmd_sudo(int argc, char * argv[]) {

@@ -559,7 +559,7 @@ term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * call
 #define USE_BELL 0
 
 /* Multi shell variables and constants */
-#define MULTISHELL_STARTUP_COUNT 2
+#define MULTISHELL_STARTUP_COUNT 1
 static int shells_forked = 0;
 int shm_lock = 0;
 list_t * shellpid_hash;
@@ -1138,36 +1138,28 @@ static void hide_textmode_cursor() {
 void multishell_single(int forkno, char * user) {
 	if(forkno > 0) {
 		if(user==NULL) {
-			char opt[8];
-			sprintf(opt,"-q %d", forkno);
-			char * tokens[] = {"/bin/login", opt, NULL};
+			char * tokens[] = {"/bin/login", "-q", NULL};
 			execvp(tokens[0], tokens);
 		} else {
-			char opt[8];
-			sprintf(opt,"-q %d", forkno);
-			char usr_opt[20];
-			sprintf("-u %s", user);
-			char * tokens[] = {"/bin/login", opt, usr_opt, NULL};
+			char * tokens[] = {"/bin/login", "-q", "-u", user, NULL};
 			execvp(tokens[0], tokens);
 		}
-		_exit(EXIT_SUCCESS);
 	} else {
-		char * tokens[] = {"/bin/login", NULL};
+		char * tokens[] = {"/bin/login", "-u" , "root" , NULL};
 		execvp(tokens[0], tokens);
-		_exit(EXIT_SUCCESS);
 	}
+	_exit(EXIT_SUCCESS);
 }
 
 void spawn_shell(int forkno, char * user){
 	int shellpid = fork();
-
 	if(!shellpid) {
 		/* Redirect IO */
 		for(int i=0;i<3;i++)
 			dup2(fd_slave, STDIN_FILENO + i);
 
 		/* Call shell */
-		multishell_single(forkno);
+		multishell_single(forkno, user);
 	}
 
 	char forkno_str[10];
@@ -1177,24 +1169,38 @@ void spawn_shell(int forkno, char * user){
 		hashmap_set(multishell_sessions, user, shellpid);
 }
 
-void kill_shell(int shell_pid, char * key) {
-	hashmap_remove(shellpid_hash, key);
+void kill_shell(int shell_pid, char * forkno, char * user) {
+	/* FIXME */
+	if(forkno)
+		hashmap_remove(shellpid_hash, forkno);
+	if(user)
+		hashmap_remove(multishell_sessions, user);
+
 	kill(shell_pid, SIGKILL);
+
 	shells_forked--;
 }
 
 void update_shm_shmon(int pid){
-	char shmon_info[24];
-
-	char newshell_str[10];
-	sprintf(newshell_str, "newshell:%d", pid);
-
-	char forkno_str[5];
-	sprintf(forkno_str, "%d", shells_forked - 1);
-
-	sprintf(shmon_info,"%s\nnextshell:%d", newshell_str, hashmap_get(shellpid_hash, forkno_str));
-
+	char shmon_info[50];
+	sprintf(shmon_info, "newshell:%d", pid);
 	strcpy(shm_monitor_input, shmon_info);
+}
+
+int get_pid_from_hash(int shellno) {
+	char shellno_str[5];
+	sprintf(shellno_str,"%d", shellno);
+	return (int)hashmap_get(shellpid_hash, shellno_str);
+}
+
+char * read_username_from_shm () {
+	int usrname_size = 0;
+	int usrname_offset = strchr(shm_monitor_output, ':') - shm_monitor_output;
+	for(usrname_size=0; shm_monitor_output[usrname_size+usrname_offset]!='\n' ;usrname_size++);
+	char * user = malloc(usrname_size);
+	memcpy(user, strchr(shm_monitor_output, ':') + 1, usrname_size - 1);
+	user[usrname_size-1] = '\0';
+	return user;
 }
 
 void monitor_multishell() {
@@ -1214,68 +1220,89 @@ void monitor_multishell() {
 	/* write only from other processes perspective */
 	shm_monitor_output = (char *) syscall_shm_obtain(SHM_SHELLMON_OUT, &shmon_s);
 	memset(shm_monitor_output, 0, shmon_s);
-	update_shm_shmon(shells_forked);
+	update_shm_shmon(get_pid_from_hash(shells_forked - 1));
 
 	/* Monitor multishell requests: */
 	while(!exit_application) {
 		/* Use a lock/mutex on the shared memory resource */
 		spin_lock(&shm_lock);
+		/* Check if there's new requests: */
 		if(shm_monitor_output[0]!=0) {
 			/* Process request */
-			if(shm_monitor_output[0] == '-') {
-				if(shm_monitor_output[1] == SHM_CTRL_KILL) {
-					/* Kill a shell */
+			if(shm_monitor_output[0] == '-') { /* We found a command for shmon */
+				if(shm_monitor_output[1] == SHM_CTRL_KILL) { /* Kill a shell */
 					char * shellno_str = strchr(shm_monitor_output, ':') + 1;
 
 					/* grab shell pid from shellno */
 					int shellpid = (int)hashmap_get(shellpid_hash, shellno_str);
-					kill_shell(shellpid, shellno_str);
-				} else if(shm_monitor_output[1] == SHM_CTRL_GRAB_PID){
-					/*
-					 * Re arrange the PID for a certain user, this means we're not gonna
-					 * grab the next brand new shell where no one is logged in
-					 */
 
-					/* Read the user from shared memory */
-					char * user = (char*)strchr(shm_monitor_output, ':') + 1;
-					int ret_pid = shells_forked;
-
-					/* See if he is already logged (through the hashmap) */
-					uint8_t is_logged = 0;
-					list_t * keys = hashmap_keys(multishell_sessions);
-					foreach(key, keys) {
-						if(!strcmp(key, user)){
-							is_logged = 1;
-							ret_pid = (int)hashmap_get(multishell_sessions, key);
+					list_t * user_keys = hashmap_keys(multishell_sessions);
+					char * user = NULL;
+					foreach(key, user_keys) {
+						if((int)hashmap_get(multishell_sessions, key) == shellpid) {
+							user = key;
 							break;
 						}
 					}
 
-					/* return the user's pid instead of the new one (if he's logged in) */
-					if(is_logged){
-						update_shm_shmon(ret_pid);
+					kill_shell(shellpid, shellno_str, user);
+				} else if(shm_monitor_output[1] == SHM_CTRL_GRAB_PID){ /* Login to a certain user account */
+					/*
+					 * Re arrange the PID for a certain user, this means we're not gonna
+					 * grab the next brand new shell where no one is logged in
+					 */
+					/* Read the user from shared memory */
+					char * user = read_username_from_shm();
+
+					/* See if he is already logged (through the hashmap) */
+					if(hashmap_has(multishell_sessions, user)) {
+						/* return the user's pid instead of the new one (if he's logged in) */
+						update_shm_shmon((int)hashmap_get(multishell_sessions, user));
 					} else {
-						/* else he isn't, create a shell and add this user to the hashmap */
-						spawn_shell(shells_forked++, user);
-						update_shm_shmon(shells_forked);
+						/* the user is not logged in, spawn new shell */
+						spawn_shell(shells_forked, user);
+						update_shm_shmon(get_pid_from_hash(shells_forked));
+						shells_forked++;
 					}
+					free(user);
+				} else if(shm_monitor_output[1] == SHM_CTRL_ADD_USR) { /* Add a user to the hashmap */
+					/* Read the user from shared memory */
+					char * user = read_username_from_shm();
+					int pid = atoi((char*)strchr(shm_monitor_output, '\n') + 1);
+
+					hashmap_set(multishell_sessions, user, pid);
+					free(user);
+				} else if(shm_monitor_output[1] == SHM_CTRL_REM_USR) { /* Remove  a user from the hashmap */
+					/* Read the user from shared memory */
+					char * user = read_username_from_shm();
+					int pid = atoi((char*)strchr(shm_monitor_output, '\n') + 1);
+
+					list_t * forkno_keys = hashmap_keys(shellpid_hash);
+					char * forkno = NULL;
+					foreach(key, forkno_keys) {
+						if((int)hashmap_get(multishell_sessions, key) == pid) {
+							forkno = key;
+							break;
+						}
+					}
+
+					kill_shell(pid, forkno, user);
+					free(user);
 				}
-			} else {
-				spawn_shell(shells_forked++, NULL);
-				/* Update shm_monitor_input with new info */
-				update_shm_shmon(shells_forked);
 			}
+
+			/* Clear request buffer */
+			memset(shm_monitor_output, 0, shmon_s);
 		}
-		memset(shm_monitor_output, 0 , shmon_s);
 		spin_unlock(&shm_lock);
 	}
+
+	/* Better not reach this point */
 
 	hashmap_free(multishell_sessions);
 	hashmap_free(shellpid_hash);
 	syscall_shm_release(SHM_SHELLMON_IN);
 	syscall_shm_release(SHM_SHELLMON_OUT);
-
-	pthread_exit(0);
 }
 
 int main(int argc, char ** argv) {
