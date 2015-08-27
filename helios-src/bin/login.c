@@ -25,6 +25,31 @@
 static uint8_t already_saw_motd = 0;
 char * passed_username = NULL;
 uint32_t child = 0;
+uint8_t multishell_cont = 0;
+uint8_t just_exited = 0;
+
+int shm_lock = 0;
+char * shm;
+char shm_key[30];
+
+
+int shmon_get_user(char * username) {
+	int ret_pid = -1;
+
+	size_t s = 0;
+	char * shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
+	char cmd[20];
+	sprintf(cmd, "-%c:%s\n", SHM_CTRL_GET_USR, username);
+	strcpy(shm, cmd); /* send the message to 'terminal' process */
+
+	while(shm[0]) usleep(10000); /* wait for acknowledge */
+
+	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
+	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
+	ret_pid = atoi(nextshell_pid);
+
+	return ret_pid;
+}
 
 void shmon_send_user(char * username) {
 	size_t s = 0;
@@ -34,28 +59,23 @@ void shmon_send_user(char * username) {
 	sprintf(cmd, "-%c:%s\n%d", SHM_CTRL_ADD_USR, username, getpid());
 	strcpy(shm, cmd);
 
+	while(shm[0]) usleep(10000); /* wait for acknowledge */
+}
+
+void send_kill_msg_login(int pid){
+	size_t s = 1;
+	char shm_key[30];
+	memset(shm_key, 0, 30);
+	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
+	char pid_str[5];
+	memset(pid_str, 0, 5);
+	sprintf(pid_str, "%d", pid);
+	strcat(shm_key, pid_str);
+	char * shm = (char*) syscall_shm_obtain(shm_key, &s);
+
+	shm[0] = 1; /* just a flag */
 	while(shm[0]) usleep(10000);
 }
-
-void sig_pass(int sig) {
-	/* Pass onto the shell */
-	if (child)
-		kill(child, sig);
-	/* Else, ignore */
-}
-
-void sig_segv(int sig) {
-	printf("Segmentation fault.\n");
-	exit(127 + sig);
-}
-
-uint8_t multishell_cont = 0;
-uint8_t reap = 0;
-uint8_t just_exited = 0;
-
-int shm_lock = 0;
-char * shm;
-char shm_key[30];
 
 void set_shm() {
 	size_t s = 1;
@@ -81,6 +101,18 @@ int listen_to_shm(){
 	return ret;
 }
 
+void sig_pass(int sig) {
+	/* Pass onto the shell */
+	if (child)
+		kill(child, sig);
+	/* Else, ignore */
+}
+
+void sig_segv(int sig) {
+	printf("Segmentation fault.\n");
+	exit(127 + sig);
+}
+
 void sig_tstp(int sig) {
 	multishell_cont = 0;
 	if (child) kill(child, sig);
@@ -96,9 +128,8 @@ void sig_cont(int sig) {
 }
 
 void sig_kill(int sig) {
-	reap = 1;
 	sig_pass(sig);
-	sig_cont(sig);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char ** argv) {
@@ -127,8 +158,6 @@ int main(int argc, char ** argv) {
 		fflush(stdout);
 		printf("\n");
 	}
-
-	if(reap) return 0;
 
 	while (1) {
 		char * username = malloc(sizeof(char) * 1024);
@@ -187,6 +216,20 @@ int main(int argc, char ** argv) {
 			continue;
 		}
 
+		/* Check first if user is already logged in on another process */
+		int switch_pid = -1;
+		if(already_saw_motd && (switch_pid = shmon_get_user(username)) != -1 && switch_pid != getpid()) {
+			/* If he is, switch immediately to the pid where he lives in and then reap this login process */
+			/* Use shared memory instead of signals due to permission problems */
+			send_kill_msg_login(switch_pid);
+
+			/* KILL THIS SHELL AND LOGIN */
+			sig_pass(SIGKILL);
+			return 0;
+			_exit(EXIT_SUCCESS);
+		}
+		/* Else continue */
+
 		fprintf(stdout, "\e[32;1m\nLogin Successful!");
 
 		/* Send command to shmon to add this user to the multishell_session hashmap */
@@ -223,7 +266,6 @@ int main(int argc, char ** argv) {
 				result = waitpid(f, NULL, 0);
 			} while (result < 0);
 			just_exited = 1;
-
 		}
 		child = 0;
 		free(username);

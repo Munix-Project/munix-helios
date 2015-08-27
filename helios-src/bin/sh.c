@@ -913,8 +913,7 @@ void sig_cont(int sig) {
 
 void sig_kill(int sig){
 	sig_pass(sig);
-	reap = 1;
-	sig_cont(sig);
+	exit(EXIT_FAILURE);
 }
 
 int main(int argc, char ** argv) {
@@ -1123,6 +1122,7 @@ uint32_t shmon_nextshell(char * switch_user) {
 	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
 	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
 	int nextshell_pid_int = atoi(nextshell_pid);
+
 	return nextshell_pid_int == parent_pid ? -1 : nextshell_pid_int;
 }
 
