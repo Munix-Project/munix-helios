@@ -53,6 +53,19 @@ enum { SLRE_IGNORE_CASE = 1 };
 #define SLRE_TOO_MANY_BRANCHES      -8
 #define SLRE_TOO_MANY_BRACKETS      -9
 
+/* Library added */
+typedef struct {
+	char ** matches;
+	int count;
+} regex_t;
+
+#define SECTOR_COUNT 10
+#define MAX_MATCH_COUNT 4096 * SECTOR_COUNT
+char * matches[MAX_MATCH_COUNT];
+
+extern regex_t * rexmatch(char * patt, char * text);
+extern void free_regex(regex_t * reg);
+
 #ifdef __cplusplus
 }
 #endif

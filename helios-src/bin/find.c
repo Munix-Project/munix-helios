@@ -9,12 +9,8 @@
 #include <stdint.h>
 #include <getopt.h>
 #include <stdlib.h>
-#include <dirent.h>
-#include <sys/stat.h>
-#include <unistd.h>
 #include <string.h>
-
-#define IS_PATH_BAD(path) !strcmp(path, ".") || !strcmp(path, "..") || !strcmp(path, "lost+found")
+#include <file_it.h>
 
 /* flags */
 uint8_t byname = 0;
@@ -30,118 +26,25 @@ char * toppath = ".";
 int bysize_int = 0;
 int maxdepth = 0;
 
-enum TYPES {
-	TYPE_DIR 	= 'd',
-	TYPE_EXEC 	= 'e',
-	TYPE_LINK 	= 'l',
-	TYPE_FILE 	= 'f',
-	TYPE_BLOCK 	= 'b'
-};
-
-typedef struct {
-	char * fullpath;
-	char * name;
-	uint8_t type;
-	int size;
-} callback_dat;
-
-typedef void (*callback_t)(callback_dat);
-
-void crawl(callback_t call, char * path, int depth) {
-	if(limit_depth && depth > maxdepth) return;
-
-	/* Remove '/' from the end of the path */
-	int pathlen = strlen(path), ptr = pathlen - 1;
-	if(path[pathlen - 1] == '/'){
-		/* Search for normal char that isn't '/' counting from the back */
-		for(int i = pathlen - 1; i>0; i--)
-			if(path[i]!='/'){ptr = i; break;} /* Found offset */
-		path[ptr+1] = '\0';
-	}
-
-	DIR * dir = opendir(path);
-	if(dir == NULL){
-		fprintf(stderr, "find: %s: No such directory\n", path);
-		exit(EXIT_FAILURE);
-	}
-
-	struct dirent * dire = readdir(dir);
-	while(dire != NULL) {
-		char * nodename = dire->d_name;
-		if(IS_PATH_BAD(nodename)) {
-			dire = readdir(dir);
-			continue;
-		}
-
-		/* Go recursive here */
-		struct stat statbuff;
-		char fullpath[strlen(path) + strlen(nodename) + 1];
-		sprintf(fullpath, "%s/%s", path, nodename);
-		lstat(fullpath, &statbuff);
-
-		/* Fix up fullpath: */
-		char * fullpath_ = fullpath;
-		int i=0;
-		for(i=0; fullpath[i]=='/'; i++,fullpath_++); /* Move offset because of redudant /'s */
-		if(i>0) fullpath_--; /* Not so far */
-
-		/* Is it a directory? */
-		if(S_ISDIR(statbuff.st_mode)){
-			/* Also match this directory to the search */
-			callback_dat pack = { .fullpath = fullpath_, .type = TYPE_DIR, .name=nodename, .size = statbuff.st_size};
-			if(call) call(pack);
-			crawl(call, fullpath, depth + 1);
-		}else { /* Handle links: */
-			uint8_t was_link = 0;
-			if(S_ISLNK(statbuff.st_mode)) {
-				stat(fullpath, &statbuff);
-				char * link = malloc(4096);
-				readlink(fullpath_, link, 4096);
-				sprintf(fullpath_, "%s/%s", path, link);
-				free(link);
-				was_link = 1;
-			}
-
-			callback_dat pack = { .fullpath = fullpath_, .name=nodename, .size = statbuff.st_size};
-			if(was_link)
-				pack.type = TYPE_LINK; /* Link */
-			else {
-				if(S_ISBLK(statbuff.st_mode))
-					pack.type = TYPE_BLOCK; /* Block device */
-				else if(statbuff.st_mode & 0111)
-					pack.type = TYPE_EXEC; /* Executable */
-				else
-					pack.type = TYPE_FILE; /* Regular file */
-			}
-
-			/* Else it's a regular file/not a directory */
-			if(call) call(pack);
-		}
-		dire = readdir(dir);
-	}
-	closedir(dir);
-}
-
 static int files_found = 0;
 static int matches_found = 0;
 
-void update_stats(callback_dat dat) {
+void update_stats(fit_dir_cback_dat dat) {
 	matches_found++;
-	if(dat.type != TYPE_DIR) files_found++;
+	if(dat.type != FIT_TYPE_DIR) files_found++;
 }
 
-void find(callback_dat dat){
+void find(fit_dir_cback_dat dat){
 	/* Do the filtering here using the flags */
 	int size = dat.size;
 	char * fullpath = dat.fullpath;
 	char * name = dat.name;
 	uint8_t type = dat.type;
 
-	/* Decide to whether to show data or not: */
+	/* Decide to whether show the data or not: */
 	if(!byexec && !byname && !bysize && !bytype){ /* All conditions are off, show all matches */
 		goto match_found;
-	}
-	else {
+	} else {
 		/* TODO: Add regex to the name matching */
 
 		/* Filter it */
@@ -150,7 +53,7 @@ void find(callback_dat dat){
 
 		for(int i=0; i< trycount; i++) /* Try for all options given in type */
 		{
-			uint8_t match_types = ((byexec && type==TYPE_EXEC) || (bysize && bysize_int>=size) || (bytype && bytype_str[i]==type));
+			uint8_t match_types = ((byexec && type == FIT_TYPE_EXEC) || (bysize && bysize_int>=size) || (bytype && bytype_str[i]==type));
 			uint8_t match_name = (byname && !strcmp(byname_str, name));
 
 			/* Cover all possibilities: */
@@ -185,7 +88,7 @@ void usage(char * argv) {
 			"[-s] - size (matches bigger or equal than this size)\n"
 			"[-e] - matches executables\n"
 			"[-m] - max depth\n"
-			"[-d] - deletes the file found", argv);
+			"[-d] - deletes the file found\n", argv);
 
 	fflush(stdout);
 }
@@ -202,7 +105,7 @@ int main(int argc, char ** argv) {
 				byname = 1;
 				byname_str = optarg;
 				break;
-			case TYPE_EXEC: byexec = 1; break;
+			case 'e': byexec = 1; break;
 			case 's':
 				bysize = 1;
 				bysize_int = atoi(optarg);
@@ -221,18 +124,18 @@ int main(int argc, char ** argv) {
 		}
 		if(!strcmp(toppath,".")) {
 			/* Always . on the current dir */
-			callback_dat dat = { .fullpath = ".", .type = TYPE_DIR, .name="." };
+			fit_dir_cback_dat dat = { .fullpath = ".", .type = FIT_TYPE_DIR, .name="." };
 			find(dat);
 		}
 	} else {
 		/* Always . on the current dir */
-		callback_dat dat = { .fullpath = ".", .type = TYPE_DIR, .name="." };
+		fit_dir_cback_dat dat = { .fullpath = ".", .type = FIT_TYPE_DIR, .name="." };
 		find(dat);
 	}
 	if(!strcmp(toppath,"~"))
 		toppath = getenv("HOME");
 
-	crawl(find, toppath, 0);
+	dir_crawl(find, toppath, 0, limit_depth ? maxdepth : IGNORE_DEPTH);
 	printf("\n%d matches / %d files  / %d folders found\n", matches_found, files_found, matches_found - files_found);
 	return 0;
 }
