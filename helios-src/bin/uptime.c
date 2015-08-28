@@ -18,7 +18,7 @@ void print_seconds(int seconds) {
 	if (seconds > DAY) {
 		int days = seconds / DAY;
 		seconds -= DAY * days;
-		printf("%d day%s, ", days, days != 1 ? "s" : "");
+		printf("%d day%s,", days, days != 1 ? "s" : "");
 	}
 	if (seconds > HOUR) {
 		int hours = seconds / HOUR;
@@ -28,7 +28,7 @@ void print_seconds(int seconds) {
 		return;
 	} else if (seconds > MINUTE) {
 		int minutes = seconds / MINUTE;
-		printf("%d minute%s,  ", minutes, minutes != 1 ? "s" : "");
+		printf("%d minute%s,", minutes, minutes != 1 ? "s" : "");
 		seconds -= MINUTE * minutes;
 	}
 
