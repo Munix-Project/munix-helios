@@ -549,11 +549,10 @@ int shell_exec(char * buffer, int buffer_size) {
 	char * history = malloc(strlen(buffer) + 1);
 	memcpy(history, buffer, strlen(buffer) + 1);
 
-	if (buffer[0] != ' ' && buffer[0] != '\n') {
+	if (buffer[0] != ' ' && buffer[0] != '\n')
 		shell_history_insert(history);
-	} else {
+	else
 		free(history);
-	}
 
 	char * argv[1024];
 	int tokenid = 0;
@@ -862,7 +861,6 @@ void show_usage(int argc, char * argv[]) {
 }
 
 uint8_t sigcont = 0;
-uint8_t reap = 0;
 
 /* Same method used in 'login.c' for listening for a signal
  * through shared memory */
@@ -960,8 +958,6 @@ int main(int argc, char ** argv) {
 	shell_interactive = 1;
 
 	while (1) {
-		if(reap) break;
-
 		draw_prompt(last_ret);
 		char buffer[LINE_LEN] = {0};
 		int  buffer_size;

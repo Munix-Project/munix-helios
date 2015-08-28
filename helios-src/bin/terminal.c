@@ -515,9 +515,8 @@ void ansi_put(term_state_t * s, char c) {
 
 term_state_t * ansi_init(term_state_t * s, int w, int y, term_callbacks_t * callbacks_in) {
 
-	if (!s) {
+	if (!s)
 		s = malloc(sizeof(term_state_t));
-	}
 
 	memset(s, 0x00, sizeof(term_state_t));
 
@@ -1162,10 +1161,6 @@ void spawn_shell(int forkno, char * user){
 	}
 }
 
-void kill_shell(int shell_pid, char * forkno, char * user) {
-
-}
-
 void update_shm_shmon(int pid){
 	char shmon_info[50];
 	sprintf(shmon_info, "newshell:%d", pid);
@@ -1183,10 +1178,14 @@ char * get_username_from_pid(int pid) {
 	list_t * keys = hashmap_keys(multishell_sessions);
 	foreach(key,keys)
 		if(hashmap_get(multishell_sessions, key->value) == pid) {
-			username = key->value;
+			int usr_size = strlen(key->value);
+			username = malloc(sizeof(char) * usr_size);
+			memset(username, 0, usr_size);
+			memcpy(username, key->value, usr_size);
 			break;
 		}
-
+	list_free(keys);
+	free(keys);
 	return username;
 }
 
@@ -1205,6 +1204,7 @@ int get_shellno_count() {
 	list_t * keys = hashmap_keys(shellpid_hash);
 	foreach(key, keys)
 		count++;
+	list_free(keys);
 	free(keys);
 	return count;
 }
@@ -1241,7 +1241,9 @@ void monitor_multishell() {
 				char forkno_str[10];
 				sprintf(forkno_str,"%d", i);
 				hashmap_remove(shellpid_hash, forkno_str);
-				hashmap_remove(multishell_sessions, get_username_from_pid(child));
+				char * user = get_username_from_pid(child);
+				hashmap_remove(multishell_sessions, user);
+				free(user);
 
 				/* Update the other shellno's onward: */
 				for(int j = i;j < shellcount - 1;j++){
@@ -1316,6 +1318,8 @@ void monitor_multishell() {
 
 	hashmap_free(multishell_sessions);
 	hashmap_free(shellpid_hash);
+	free(multishell_sessions);
+	free(shellpid_hash);
 	syscall_shm_release(SHM_SHELLMON_IN);
 	syscall_shm_release(SHM_SHELLMON_OUT);
 }

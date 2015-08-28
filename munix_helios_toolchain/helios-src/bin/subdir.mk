@@ -147,6 +147,13 @@ helios-src/bin/%.o: ../helios-src/bin/%.c
 	@echo 'Finished building: $<'
 	@echo ' '
 
+helios-src/bin/grep.o: ../helios-src/bin/grep.c
+	@echo 'Building file: $<'
+	@echo 'Invoking: Cross GCC Compiler'
+	i686-pc-toaru-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-hdd/usr/include" -I"/home/miguel/git/munix-helios/helios-src/usr/include" -O3 -g3 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/slre -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/grep.d" -o "$@" "$<"
+	@echo 'Finished building: $<'
+	@echo ' '
+
 helios-src/bin/init.o: ../helios-src/bin/init.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'

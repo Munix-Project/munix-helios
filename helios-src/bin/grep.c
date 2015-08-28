@@ -1,29 +1,14 @@
-/*
- * grep.c
- *
- *  Created on: Aug 26, 2015
- *      Author: miguel
- */
-
 #include <stdio.h>
-#include <regex.h>
 #include <unistd.h>
+#include <slre.h>
+#include <string.h>
 
-#define CHUNK_SIZE 4096
+char * regexp;
+char * text;
 
 void usage() {
 	printf("Usage: grep [OPTION] PATTERN TEXT\n");
 	fflush(stdout);
-}
-
-static int compile_regex(regex_t * reg, const char * patt, int flags) {
-
-	return 1;
-}
-
-static int match_regex(regex_t * reg, const char * text) {
-
-	return 1;
 }
 
 int main(int argc, char ** argv) {
@@ -32,20 +17,18 @@ int main(int argc, char ** argv) {
 		return 1;
 	}
 
-	char c;
-	char * patt, * text;
-	while((c = getopt(argc, argv, "he:")) != -1) {
-		switch(c) {
-		case 'h': usage(); break;
-		}
+	regexp 	= argv[1];
+	text 	= argv[2];
+
+	int caps_count = 4;
+	struct slre_cap caps[caps_count];
+	if(slre_match(regexp, text, strlen(text), caps, caps_count, 0) > 0) {
+		printf("Match: '%s'\n", caps[0].ptr);
+	} else {
+		printf("Error parsing '%s'\n", text);
 	}
 
-	patt = argv[argc-2];
-	text = argv[argc-1];
-
-	regex_t r;
-	compile_regex(&r, patt, REG_EXTENDED|REG_NEWLINE);
-	match_regex(&r, text);
+	fflush(stdout);
 
 	return 0;
 }
