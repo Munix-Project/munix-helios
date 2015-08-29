@@ -56,10 +56,9 @@ void print_match(char * filepath, regex_t * match) {
 
 				for(int j=0;j<match->matchcount;j++) {
 					char * repl_color = malloc(sizeof(char *) * (strlen(updated) + 14));
-					sprintf(repl_color, "\e[32;1m%s\e[0m", match->matches[i]);
+					sprintf(repl_color, "\e[32;1m%s\e[0m", match->matches[j]);
 
-					char * tmp = (char*)str_replace(updated, match->matches[i], repl_color);
-					updated = tmp;
+					updated = (char*)str_replace(updated, match->matches[j], repl_color);
 
 					free(repl_color);
 				}

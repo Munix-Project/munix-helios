@@ -532,15 +532,14 @@ regex_t * rexmatch(char * patt, char * text) {
 		matches_whole_alloc[i++][strl] = '\0';
 	}
 
-	list_free(wordlist);
-	free(wordlist);
-
 	regex_t * ret = malloc(sizeof(regex_t*));
 	ret->matchcount = matchcount;
 	ret->matches = matches_alloc;
 	ret->matches_whole = matches_whole_alloc;
 	ret->wordcount = wordlist_size;
 
+	list_free(wordlist);
+	free(wordlist);
 	free_split(split_txt);
 	return ret;
 }

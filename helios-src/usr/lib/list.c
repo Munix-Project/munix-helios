@@ -60,7 +60,7 @@ node_t * list_insert(list_t * list, void * item) {
 }
 
 void list_append_after(list_t * list, node_t * before, node_t * node) {
-	assert(!(node->next || node->prev) && "Node is already in a list.");
+	//assert(!(node->next || node->prev) && "Node is already in a list.");
 	node->owner = list;
 	if (!list->length) {
 		list_append(list, node);
