@@ -157,7 +157,7 @@ int list_index_of(list_t * list, void * value) {
 		}
 		i++;
 	}
-	return -1; /* not find */
+	return -1; /* not found */
 }
 
 void list_remove(list_t * list, size_t index) {

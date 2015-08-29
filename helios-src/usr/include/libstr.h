@@ -14,7 +14,8 @@ typedef struct {
 } split_t;
 
 extern split_t split(char * str, char deli);
-void free_split(split_t str);
-char *trim(char *str);
+extern void free_split(split_t str);
+extern char *trim(char *str);
+extern char * str_replace(char *orig, char *rep, char *with);
 
 #endif /* HELIOS_SRC_USR_INCLUDE_LIBSTR_H_ */

@@ -24,6 +24,7 @@
 #include <libstr.h>
 #include <slre.h>
 #include <stdint.h>
+#include <list.h>
 
 #define MAX_BRANCHES 100
 #define MAX_BRACKETS 100
@@ -467,8 +468,15 @@ char *slre_replace(const char *regex, const char *buf, const char *sub) {
 /* Library added: */
 
 regex_t * rexmatch(char * patt, char * text) {
+	/* Replace new lines with spaces, as they are also considered characters that separate words */
+	for(int i=0; i<strlen(text); i++)
+		if(text[i] == 0x0A || text[i] == 0xD)
+			text[i] = ' ';
+
 	/* Split 'text', then match all the words and store them and their match pointers */
 	split_t split_txt = split(text, ' ');
+	list_t * wordlist = list_create();
+	int wordlist_size = 0;
 
 	char * pattfix = malloc(sizeof(char*) * (strlen(patt) + 3));
 	sprintf(pattfix, "(%s)", patt);
@@ -478,28 +486,36 @@ regex_t * rexmatch(char * patt, char * text) {
 	int matchcount = 0;
 
 	for(int l=0; l<split_txt.wordcount; l++) {
+		uint8_t word_added = 0;
 		int i,j = 0, strl = strlen(split_txt.str[l]);
 
 		while(j < strl && (i = slre_match(pattfix, split_txt.str[l] + j, strl - j, caps, caps_count, 0)) > 0) {
-			if(!caps[0].len) continue;
-
 			/* Store just the match */
 			matches[matchcount] = malloc(sizeof(char*) * (caps[0].len + 1));
 			memcpy(matches[matchcount], caps[0].ptr, caps[0].len);
 			matches[matchcount++][caps[0].len] = '\0';
 
 			j += i;
+
+			/* This word contains a match. Add it to the list */
+			if(!word_added) {
+				list_insert(wordlist, (void*)l);
+				wordlist_size++;
+				word_added = 1;
+			}
 		}
 	}
 	free(pattfix);
 
 	if(!matchcount){
+		list_free(wordlist);
+		free(wordlist);
 		free_split(split_txt);
 		return NULL;
 	}
 
 	char ** matches_alloc = malloc(sizeof(char**) * matchcount);
-	for(int i=0;i<matchcount;i++){
+	for(int i=0;i < matchcount;i++){
 		int strl = strlen(matches[i]);
 		matches_alloc[i] = malloc(sizeof(char*) * (strl + 1));
 		strcpy(matches_alloc[i], matches[i]);
@@ -507,19 +523,23 @@ regex_t * rexmatch(char * patt, char * text) {
 		free(matches[i]);
 	}
 
-	char ** matches_whole_alloc = malloc(sizeof(char**) * split_txt.wordcount);
-	for(int i=0;i<split_txt.wordcount;i++){
-		int strl = strlen(split_txt.str[i]);
+	char ** matches_whole_alloc = malloc(sizeof(char**) * wordlist_size);
+	int i = 0;
+	foreach(item, wordlist) {
+		int strl = strlen(split_txt.str[(int)(item->value)]);
 		matches_whole_alloc[i] = malloc(sizeof(char*) * (strl + 1));
-		strcpy(matches_whole_alloc[i], split_txt.str[i]);
-		matches_whole_alloc[i][strl] = '\0';
+		strcpy(matches_whole_alloc[i], split_txt.str[(int)(item->value)]);
+		matches_whole_alloc[i++][strl] = '\0';
 	}
 
-	regex_t * ret = malloc(sizeof(regex_t));
+	list_free(wordlist);
+	free(wordlist);
+
+	regex_t * ret = malloc(sizeof(regex_t*));
 	ret->matchcount = matchcount;
 	ret->matches = matches_alloc;
 	ret->matches_whole = matches_whole_alloc;
-	ret->wordcount = split_txt.wordcount;
+	ret->wordcount = wordlist_size;
 
 	free_split(split_txt);
 	return ret;

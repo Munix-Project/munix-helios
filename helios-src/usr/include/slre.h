@@ -61,7 +61,7 @@ typedef struct {
 	int wordcount;
 } regex_t;
 
-#define SECTOR_COUNT 10
+#define SECTOR_COUNT 100
 #define MAX_MATCH_COUNT 4096 * SECTOR_COUNT
 char * matches[MAX_MATCH_COUNT];
 

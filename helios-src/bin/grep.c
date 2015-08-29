@@ -5,6 +5,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <fcntl.h>
+#include <libstr.h>
 
 #define YELLOW_FORE "\e[33;1m"
 #define NORMAL_TEXT "\e[0m"
@@ -48,19 +49,25 @@ void print_match(char * filepath, regex_t * match) {
 				for(int i=0;i<match->matchcount;i++)
 					printf("%s\n", match->matches[i]);
 		} else  {
-			/* Include the whole word boundary, not just the match */
-			if(filepath) {
-				for(int i=0;i<match->matchcount;i++) {
-					/* Grab pointer to the match and its length, and highlight the match on the whole word */
+			/* Include the whole word, not just the match */
+			for(int i=0;i<match->wordcount;i++) {
+				/* Grab pointer to the match and its length, and highlight the match on the whole word */
+				char * updated = match->matches_whole[i];
 
-					printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, match->matches_whole[i]);
-				}
-			} else {
-				for(int i=0;i<match->matchcount;i++){
-					/* Grab pointer to the word and length, and highlight the match on the whole word */
+				for(int j=0;j<match->matchcount;j++) {
+					char * repl_color = malloc(sizeof(char *) * (strlen(updated) + 14));
+					sprintf(repl_color, "\e[32;1m%s\e[0m", match->matches[i]);
 
-					printf("%s\n", match->matches_whole[i]);
+					char * tmp = (char*)str_replace(updated, match->matches[i], repl_color);
+					updated = tmp;
+
+					free(repl_color);
 				}
+				if(filepath)
+					printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, updated);
+				else
+					printf("%s\n", updated);
+				free(updated);
 			}
 		}
 		free_regex(match);
