@@ -3,6 +3,7 @@
 TOOLCHAIN=./munix_helios_toolchain
 SRCPATH=helios-src
 DSTPATH=./helios-hdd
+LIBSPATH=$TOOLCHAIN/$SRCPATH/usr/lib
 
 DISKFILE=munix_helios_toolchain/helios.img
 DEVTABLE=munix_helios_toolchain/util/devtable
@@ -29,7 +30,7 @@ if [[ $# -ne 0 ]]; then
 fi
 
 # Strip the extension from all object files and copy the files to the HDD
-FILELIST=$(find $TOOLCHAIN -name *.o | rename -v -f 's@\.o@@g' | grep -o -E " \./.+?")
+FILELIST=$(find $TOOLCHAIN -path $LIBSPATH -prune -o -name *.o | rename -v -f 's@\.o@@g' | grep -o -E " \./.+?")
 
 # Loop through both FILELIST and FILELSTDST and use their index like an array
 for ARG in $(echo $FILELIST); do

@@ -103,8 +103,8 @@ void dir_crawl(fit_dir_cback_t call, char * path, int depth, int maxdepth) {
 			uint8_t was_link = 0;
 			if(S_ISLNK(statbuff.st_mode)) {
 				stat(fullpath, &statbuff);
-				char * link = malloc(4096);
-				readlink(fullpath_, link, 4096);
+				char * link = malloc(CHUNK_SIZE);
+				readlink(fullpath_, link, CHUNK_SIZE);
 				sprintf(fullpath_, "%s/%s", path, link);
 				free(link);
 				was_link = 1;

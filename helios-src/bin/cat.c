@@ -44,7 +44,6 @@ int main(int argc, char**argv) {
 		}
 
 		cat(filedir);
-
 		close(filedir);
 	}
 

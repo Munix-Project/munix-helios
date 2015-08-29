@@ -56,7 +56,9 @@ enum { SLRE_IGNORE_CASE = 1 };
 /* Library added */
 typedef struct {
 	char ** matches;
-	int count;
+	char ** matches_whole;
+	int matchcount;
+	int wordcount;
 } regex_t;
 
 #define SECTOR_COUNT 10
