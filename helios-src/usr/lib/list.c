@@ -29,7 +29,7 @@ void list_free(list_t * list) {
 }
 
 void list_append(list_t * list, node_t * node) {
-	assert(!(node->next || node->prev) && "Node is already in a list.");
+	//assert(!(node->next || node->prev) && "Node is already in a list.");
 	node->next = NULL;
 	/* Insert a node onto the end of a list */
 	node->owner = list;

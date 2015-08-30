@@ -467,7 +467,7 @@ char *slre_replace(const char *regex, const char *buf, const char *sub) {
 
 /* Library added: */
 
-regex_t * rexmatch(char * patt, char * text) {
+regex_t rexmatch(char * patt, char * text) {
 	/* Replace new lines with spaces, as they are also considered characters that separate words */
 	for(int i=0; i<strlen(text); i++)
 		if(text[i] == 0x0A || text[i] == 0xD)
@@ -475,81 +475,66 @@ regex_t * rexmatch(char * patt, char * text) {
 
 	/* Split 'text', then match all the words and store them and their match pointers */
 	split_t split_txt = split(text, ' ');
+	list_t * matches = list_create();
 	list_t * wordlist = list_create();
 	int wordlist_size = 0;
 
-	char * pattfix = malloc(sizeof(char*) * (strlen(patt) + 3));
+	/* Fix regex pattern by adding '(' and ')' around the word */
+	int pattlen = strlen(patt);
+	char * pattfix = malloc(sizeof(char*) * (pattlen + 3));
 	sprintf(pattfix, "(%s)", patt);
+	pattfix[pattlen+2] = '\0';
 
+	/* Do the actual regex matching: */
 	int caps_count = 4;
-	struct slre_cap caps[caps_count];
+	struct slre_cap caps[4];
 	int matchcount = 0;
-
 	for(int l=0; l<split_txt.wordcount; l++) {
 		uint8_t word_added = 0;
 		int i,j = 0, strl = strlen(split_txt.str[l]);
 
 		while(j < strl && (i = slre_match(pattfix, split_txt.str[l] + j, strl - j, caps, caps_count, 0)) > 0) {
+			if(!caps[0].len) continue;
 			/* Store just the match */
-			matches[matchcount] = malloc(sizeof(char*) * (caps[0].len + 1));
-			memcpy(matches[matchcount], caps[0].ptr, caps[0].len);
-			matches[matchcount++][caps[0].len] = '\0';
-
+			char * match = malloc(sizeof(char*) * (caps[0].len + 1));
+			memcpy(match, caps[0].ptr, caps[0].len);
+			match[caps[0].len] = '\0';
+			list_insert(matches, match);
+			matchcount++;
 			j += i;
 
 			/* This word contains a match. Add it to the list */
 			if(!word_added) {
-				list_insert(wordlist, (void*)l);
+				char * word_copy = strdup(split_txt.str[l]);
+				list_insert(wordlist, word_copy);
 				wordlist_size++;
 				word_added = 1;
 			}
 		}
 	}
 	free(pattfix);
+	free_split(split_txt);
 
 	if(!matchcount){
+		list_free(matches);
+		free(matches);
 		list_free(wordlist);
 		free(wordlist);
-		free_split(split_txt);
-		return NULL;
+		regex_t nullret = {.matchcount=0};
+		return nullret;
 	}
 
-	char ** matches_alloc = malloc(sizeof(char**) * matchcount);
-	for(int i=0;i < matchcount;i++){
-		int strl = strlen(matches[i]);
-		matches_alloc[i] = malloc(sizeof(char*) * (strl + 1));
-		strcpy(matches_alloc[i], matches[i]);
-		matches_alloc[i][strl] = '\0';
-		free(matches[i]);
-	}
-
-	char ** matches_whole_alloc = malloc(sizeof(char**) * wordlist_size);
-	int i = 0;
-	foreach(item, wordlist) {
-		int strl = strlen(split_txt.str[(int)(item->value)]);
-		matches_whole_alloc[i] = malloc(sizeof(char*) * (strl + 1));
-		strcpy(matches_whole_alloc[i], split_txt.str[(int)(item->value)]);
-		matches_whole_alloc[i++][strl] = '\0';
-	}
-
-	regex_t * ret = malloc(sizeof(regex_t*));
-	ret->matchcount = matchcount;
-	ret->matches = matches_alloc;
-	ret->matches_whole = matches_whole_alloc;
-	ret->wordcount = wordlist_size;
-
-	list_free(wordlist);
-	free(wordlist);
-	free_split(split_txt);
+	regex_t ret;
+	ret.matches = matches;
+	ret.matchcount = matchcount;
+	ret.matches_whole = wordlist;
+	ret.wordcount = wordlist_size;
 	return ret;
 }
 
-void free_regex(regex_t * reg) {
-	for(int i=0;i<reg->matchcount;i++)
-		free(reg->matches[i]);
-	free(reg->matches);
-	for(int i=0;i<reg->wordcount;i++)
-		free(reg->matches_whole[i]);
-	free(reg->matches_whole);
-	free(reg);
+void free_regex(regex_t reg) {
+	list_free(reg.matches);
+	free(reg.matches);
+	list_free(reg.matches_whole);
+	free(reg.matches_whole);
 }

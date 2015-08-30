@@ -38,40 +38,37 @@ void err(char * msg) {
 	exit(EXIT_FAILURE);
 }
 
-void print_match(char * filepath, regex_t * match) {
-	if(match){
-		if(just_the_matches) {
-			/* Print the matches only */
-			if(filepath)
-				for(int i=0;i<match->matchcount;i++)
-					printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, match->matches[i]);
-			else
-				for(int i=0;i<match->matchcount;i++)
-					printf("%s\n", match->matches[i]);
-		} else  {
-			/* Include the whole word, not just the match */
-			for(int i=0;i<match->wordcount;i++) {
-				/* Grab pointer to the match and its length, and highlight the match on the whole word */
-				char * updated = match->matches_whole[i];
+void print_match(char * filepath, regex_t match) {
+	if(just_the_matches) {
+		/* Print the matches only */
+		if(filepath)
+			foreach(mat, match.matches)
+				printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, (char*)mat->value);
+		else
+			foreach(mat, match.matches)
+				printf("%s\n", (char*)mat->value);
+	} else  {
+		/* Include the whole word, not just the match */
+		foreach(word, match.matches_whole){
+			/* Grab pointer to the match and its length, and highlight the match on the whole word */
+			char * old = strdup(word->value);
+			foreach(mat, match.matches) {
+				char * repl_color = malloc(sizeof(char *) * (strlen(mat->value) + 14));
+				sprintf(repl_color, "\e[32;1m%s\e[0m", (char*)mat->value);
 
-				for(int j=0;j<match->matchcount;j++) {
-					char * repl_color = malloc(sizeof(char *) * (strlen(updated) + 14));
-					sprintf(repl_color, "\e[32;1m%s\e[0m", match->matches[j]);
+				char * new = (char*)str_replace(old, (char*)(mat->value), repl_color);
 
-					updated = (char*)str_replace(updated, match->matches[j], repl_color);
-
-					free(repl_color);
-				}
-				if(filepath)
-					printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, updated);
-				else
-					printf("%s\n", updated);
-				free(updated);
+				free(repl_color);
+				free(old);
+				old = new;
 			}
+			if(filepath)
+				printf("%s%s%s: %s\n", YELLOW_FORE, filepath, NORMAL_TEXT, old);
+			else
+				printf("%s\n", old);
 		}
-		free_regex(match);
-		fflush(stdout);
 	}
+	fflush(stdout);
 }
 
 uint8_t get_node_type(char * nodepath) {
@@ -108,28 +105,47 @@ int8_t validate_dir(char * dirpath) {
 	return -2; /* wut */
 }
 
-int get_file_size(FILE * f) {
-	int size = -1;
-	fseek(f, 0L, SEEK_END);
-	size = ftell(f);
-	fseek(f, 0L, SEEK_SET);
-	return size;
+int get_file_size(char * filename) {
+	struct stat st;
+	if(!stat(filename, &st))
+		return st.st_size;
+	else
+		return -1;
 }
 
 char * catfile(char * filepath) {
+	size_t ret;
 	FILE * f = fopen(filepath, "r");
-	int filesize = get_file_size(f);
-	char * buffer = malloc(sizeof(char*) * (filesize + 1));
-	fread(buffer, filesize, 1, f);
+	int filesize = get_file_size(filepath);
+	char * buffer = malloc(sizeof(char*) * filesize);
+	if(!buffer) {
+		fclose(f);
+		return NULL; /*file has size 0. this means the file is no good...*/
+	}
+
+	ret = fread(buffer, 1, filesize, f);
+	if(ret != filesize) {
+		fprintf(stderr, "catfile: '%s' (size: %d): Read error\n", filepath, filesize);
+		exit(EXIT_FAILURE);
+	}
 	fclose(f);
-	buffer[filesize] = '\0';
 	return buffer;
 }
 
 void recursive_callback(fit_dir_cback_dat dat){
-	char * contents = catfile(dat.fullpath);
-	print_match(dat.fullpath, (regex_t*)rexmatch(regexp, contents));
-	free(contents);
+	/* Avoid greping processes' folder, the files there can't be read, the program crashes because of it */
+	if(str_contains(dat.fullpath, "/proc")) return;
+	if(dat.type == FIT_TYPE_FILE) {
+		char * contents = catfile(dat.fullpath);
+		if(contents){
+			regex_t reg = rexmatch(regexp, contents);
+			if(reg.matchcount > 0) {
+				print_match(dat.fullpath, reg);
+				free_regex(reg);
+			}
+			free(contents);
+		}
+	}
 }
 
 int main(int argc, char ** argv) {
@@ -155,7 +171,7 @@ int main(int argc, char ** argv) {
 	if(!file_to_grep && !path_to_search) {
 		/* Matching a simple input with no recursive search nor file reading */
 		/* TODO: In the future Read from the shell pipe */
-		print_match(NULL, (regex_t*)rexmatch(regexp, text));
+		print_match(NULL, rexmatch(regexp, text));
 	}
 
 	if(file_to_grep) {
@@ -165,7 +181,7 @@ int main(int argc, char ** argv) {
 		int ret;
 		if((ret = validate_file(file_to_grep)) > 0){
 			/* It's a valid file */
-			print_match(file_to_grep, (regex_t*)rexmatch(regexp, catfile(file_to_grep)));
+			print_match(file_to_grep, rexmatch(regexp, catfile(file_to_grep)));
 		} else {
 			char msg[100];
 			if(!ret)

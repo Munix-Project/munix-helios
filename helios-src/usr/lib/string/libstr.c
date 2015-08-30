@@ -147,3 +147,7 @@ char * str_replace(char *orig, char *rep, char *with) {
     strcpy(tmp, orig);
     return result;
 }
+
+uint8_t str_contains(char * str, char * needle){
+	return strstr(str, needle) != NULL;
+}

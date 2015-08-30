@@ -25,6 +25,8 @@
 #ifndef HELIOS_SRC_USR_INCLUDE_SLRE_H_
 #define HELIOS_SRC_USR_INCLUDE_SLRE_H_
 
+#include <list.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -55,18 +57,14 @@ enum { SLRE_IGNORE_CASE = 1 };
 
 /* Library added */
 typedef struct {
-	char ** matches;
-	char ** matches_whole;
+	list_t * matches;
+	list_t * matches_whole;
 	int matchcount;
 	int wordcount;
 } regex_t;
 
-#define SECTOR_COUNT 100
-#define MAX_MATCH_COUNT 4096 * SECTOR_COUNT
-char * matches[MAX_MATCH_COUNT];
-
-extern regex_t * rexmatch(char * patt, char * text);
-extern void free_regex(regex_t * reg);
+extern regex_t rexmatch(char * patt, char * text);
+extern void free_regex(regex_t reg);
 
 #ifdef __cplusplus
 }
