@@ -34,7 +34,7 @@ FILELIST=$(find $TOOLCHAIN -path $LIBSPATH -prune -o -name *.o | rename -v -f 's
 
 # Loop through both FILELIST and FILELSTDST and use their index like an array
 for ARG in $(echo $FILELIST); do
-	ISEXECUTABLE=$(expr "$(i686-pc-toaru-nm `echo $ARG` -g | grep " main")" : '.*')
+	ISEXECUTABLE=$(expr "$(i686-munix-nm `echo $ARG` -g | grep " main")" : '.*')
 	
 	if [ "$ISEXECUTABLE" -gt 0 ]; then
 		echo $ARG - Installed

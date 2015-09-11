@@ -5,13 +5,17 @@
  *      Author: miguel
  */
 #include <unistd.h>
+#include <stdio.h>
+#include <string.h>
+
+#define MPASSWD "/etc/master.passwd"
 
 void usage() {
 	printf("passwd: usage: passwd username [options]\n"
 			"Options:\n"
 			"[-d] - remove password from account\n"
 			"[-i] - set account inactive\n"
-			"[-a] - reactivate an account\n"
+			"[-a] - reactivate account\n"
 			"[-h] - shows this message");
 }
 
@@ -27,10 +31,9 @@ int main(int argc, char ** argv) {
 			}
 		}
 
+		/* Ask for password and turn it into a SHA2 hash */
 
 		/* Parse user's password and fill a buffer with master.passwd */
-
-		/* Ask for password */
 
 		/* Compare hashes */
 

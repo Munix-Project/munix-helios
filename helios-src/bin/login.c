@@ -236,7 +236,8 @@ int main(int argc, char ** argv) {
 		shmon_send_user(username);
 
 		if(!already_saw_motd){
-			fprintf(stdout, "\e[37;1;40m\n\n--------------------------------------------------------------------------------");
+			fprintf(stdout,"\n");
+			//fprintf(stdout, "\e[37;1;40m\n\n________________________________________________________________________________");
 			fflush(stdout);
 			system("cat /etc/motd");
 			fprintf(stdout,"\n"); fflush(stdout);

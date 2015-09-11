@@ -122,17 +122,17 @@ shell_command_t shell_find(char * str) {
 	return NULL;
 }
 
-struct termios old;
+struct termios term_old;
 
 void set_unbuffered() {
-	tcgetattr(fileno(stdin), &old);
-	struct termios new = old;
+	tcgetattr(fileno(stdin), &term_old);
+	struct termios new = term_old;
 	new.c_lflag &= (~ICANON & ~ECHO);
 	tcsetattr(fileno(stdin), TCSAFLUSH, &new);
 }
 
 void set_buffered() {
-	tcsetattr(fileno(stdin), TCSAFLUSH, &old);
+	tcsetattr(fileno(stdin), TCSAFLUSH, &term_old);
 }
 
 void install_commands();

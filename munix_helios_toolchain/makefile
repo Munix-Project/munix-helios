@@ -36,7 +36,7 @@ all: munix-helios
 munix-helios: $(OBJS) $(USER_OBJS)
 	@echo 'Building target: $@'
 	@echo 'Invoking: Cross GCC Archiver'
-	i686-pc-toaru-ar -r  "munix-helios" $(OBJS) $(USER_OBJS) $(LIBS)
+	i686-munix-ar -r  "munix-helios" $(OBJS) $(USER_OBJS) $(LIBS)
 	@echo 'Finished building target: $@'
 	@echo ' '
 
