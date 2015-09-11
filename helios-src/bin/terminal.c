@@ -31,7 +31,7 @@ static void _spin_unlock(volatile int * foo) { return; }
 
 #define MAX_ARGS 1024
 
-#define TERM_ENV "TERM=munix"
+#define TERM_ENV "TERM=xterm"
 
 static wchar_t box_chars[] = L"▒␉␌␍␊°±␤␋┘┐┌└┼⎺⎻─⎼⎽├┤┴┬│≤≥";
 

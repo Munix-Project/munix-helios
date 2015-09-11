@@ -2,7 +2,7 @@
 
 TOOLCHAIN=./munix_helios_toolchain
 SRCPATH=helios-src
-DSTPATH=./helios-hdd
+DSTPATH=/home/miguel/git/toolchain/munix-hdd
 LIBSPATH=$TOOLCHAIN/$SRCPATH/usr/lib
 
 DISKFILE=munix_helios_toolchain/helios.img
@@ -10,7 +10,7 @@ DEVTABLE=munix_helios_toolchain/util/devtable
 MOUNTLOC=/mnt/helios
 SECTOR_COUNT=131072
 SECTOR_SIZE=4096
-HDDDIR=helios-hdd
+HDDDIR=$DSTPATH
 GENEXT=genext2fs
 OSNAME="Helios"
 
