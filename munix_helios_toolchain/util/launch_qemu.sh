@@ -1,7 +1,7 @@
 #!/bin/bash
 
 EMU=qemu-system-i386
-EMUAPPEND="logtoserial=1 root=/dev/hda"
+EMUAPPEND="logtoserial=1 start=--vga root=/dev/hda"
 MEMSIZE=1024
 KERNELPATH=/home/miguel/git/munix/munix_toolchain
 KERNEL=munix-kernel

@@ -64,6 +64,7 @@ int main(int argc, char * argv[]) {
 	/* Prepare OS, which include configs and initializations */
 	setupOS();
 
-	/* All is configured for startup, launch the terminal */
-	run((char*[]){"/bin/terminal", "-l", NULL});
+	/* All is configured for startup, launch the terminal / GUI */
+	run((char *[]){"/usr/bin/start", NULL});
+	//*xxx Delete this comment after testing with 'start' */ run((char*[]){"/bin/terminal", "-l", NULL});
 }
