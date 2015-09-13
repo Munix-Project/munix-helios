@@ -65,6 +65,9 @@ int main(int argc, char * argv[]) {
 	setupOS();
 
 	/* All is configured for startup, launch the terminal / GUI */
+#if 1 /* TODO: Remove this macro after testing with GUI is done */
 	run((char *[]){"/usr/bin/start", NULL});
-	//*xxx Delete this comment after testing with 'start' */ run((char*[]){"/bin/terminal", "-l", NULL});
+#else
+	run((char*[]){"/bin/terminal", "-l", NULL});
+#endif
 }
