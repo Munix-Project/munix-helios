@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ints.h>
 
 /* Macros for applying graphics */
 
@@ -43,7 +44,7 @@ extern void gfx_update(gfx_ctx_t * ctx);
 extern uint32_t rgb(uint8_t r, uint8_t g, uint8_t b);
 extern uint32_t rgba(uint8_t r, uint8_t g, uint8_t b, uint8_t a);
 
-/*********** lfbvideo firmware ***********/
+/*********** lfbvideo "firmware" ***********/
 
 extern int vid_reset_graphics();
 extern int vid_start();

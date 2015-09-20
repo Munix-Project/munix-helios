@@ -6,7 +6,7 @@
  */
 
 #include <stdio.h>
-#include <stdint.h>
+#include <stddef.h>
 #include <syscall.h>
 #include <string.h>
 #include <stdlib.h>
@@ -19,6 +19,7 @@
 #include <sys/utsname.h>
 #include <security/helios_auth.h>
 #include <spinlock.h>
+#include <shmon.h>
 
 #define LINE_LEN 1024
 

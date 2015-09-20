@@ -66,7 +66,7 @@ void gfx_update(gfx_ctx_t * ctx) {
 	gfx_flip(ctx);
 }
 
-/*********** lfbvideo firmware ***********/
+/*********** lfbvideo "firmware" ***********/
 
 int vid_fd, status;
 

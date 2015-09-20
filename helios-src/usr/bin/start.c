@@ -5,15 +5,10 @@
  *      Author: miguel
  */
 
-#include <stdio.h>
-#include <stdint.h>
-#include <stdlib.h>
 #include <graphics/graphics.h>
-#include <math.h>
-
-gfx_ctx_t * gfx;
 
 int main(int argc, char** argv) {
+	gfx_ctx_t * gfx;
 	if(!(gfx = init_gfx())) {
 		fprintf(stderr, "%s: FATAL - couldn't initialize video! Bailing...\n", argv[0]);
 		return 1;

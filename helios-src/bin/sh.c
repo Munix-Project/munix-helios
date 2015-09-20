@@ -28,6 +28,7 @@
 #include <syscall.h>
 #include <spinlock.h>
 #include <pwd.h>
+#include <shmon.h>
 
 #define OS_HOSTNAME "helios"
 

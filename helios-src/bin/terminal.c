@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <shmon.h>
+#include <stddef.h>
 
 /************** SECTION 1: ANSI *********************/
 
