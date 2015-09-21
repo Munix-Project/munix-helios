@@ -1,13 +1,13 @@
-/*
+/* vim: tabstop=4 shiftwidth=4 noexpandtab
  * This file is part of ToaruOS and is released under the terms
  * of the NCSA / University of Illinois License - see LICENSE.md
- * Copyright (C) 2015 Dale Weiler
- *
+ * Copyright (C) 2013-2014 Kevin Lange
  */
 
 #include <hashmap.h>
 #include <list.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 unsigned int hashmap_string_hash(void * _key) {
 	unsigned int hash = 0;

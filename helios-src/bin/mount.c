@@ -1,11 +1,17 @@
-/*
+ /* vim: tabstop=4 shiftwidth=4 noexpandtab
  * This file is part of ToaruOS and is released under the terms
  * of the NCSA / University of Illinois License - see LICENSE.md
- * Copyright (C) 2015 Dale Weiler
+ * Copyright (C) 2014 Kevin Lange
  *
+ * mount
+ *
+ * Mount a filesystem.
  */
 
+
 #include <stdio.h>
+
+extern int mount(char* src,char* tgt,char* typ,unsigned long,void*);
 
 int main(int argc, char ** argv) {
 	if(argc < 4) {

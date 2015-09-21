@@ -1,8 +1,15 @@
-/*
+/* vim: tabstop=4 shiftwidth=4 noexpandtab
  * This file is part of ToaruOS and is released under the terms
  * of the NCSA / University of Illinois License - see LICENSE.md
- * Copyright (C) 2015 Dale Weiler
+ * Copyright (C) 2013-2014 Kevin Lange
  *
+ * E-Shell
+ *
+ * This is the "experimental shell". It provides
+ * a somewhat unix-like shell environment, but does
+ * not include a parser any advanced functionality.
+ * It simply cuts its input into arguments and executes
+ * programs.
  */
 
 /* TODO: Add shell functions like if, for, while and other structures like $() and also piping (|) */

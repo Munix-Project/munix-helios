@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 		return 1;
 	}
 
-	gfx_draw_fill(gfx, rgb(255,125,50));
+	gfx_draw_fill(gfx, rgb(0,125,50));
 	gfx_update(gfx);
 
 	for(;;);
