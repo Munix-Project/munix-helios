@@ -18,6 +18,7 @@ helios-src/usr/bin \
 helios-src/usr/lib/file \
 helios-src/usr/lib/graphics \
 helios-src/usr/lib \
+helios-src/usr/lib/memory \
 helios-src/usr/lib/security/crypt \
 helios-src/usr/lib/security \
 helios-src/usr/lib/string \

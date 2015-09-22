@@ -36,10 +36,15 @@
 #include <spinlock.h>
 #include <pwd.h>
 #include <shmon.h>
+#include <security/helios_auth.h>
 
 #define OS_HOSTNAME "helios"
 
 #define PIPE_TOKEN "\xFF\xFFPIPE\xFF\xFF"
+
+/* Shared memory data */
+char shm_key[30];
+char * shm;
 
 /* A shell command is like a C program */
 typedef uint32_t(*shell_command_t) (int argc, char ** argv);
@@ -870,36 +875,6 @@ void show_usage(int argc, char * argv[]) {
 
 uint8_t sigcont = 0;
 
-/* Same method used in 'login.c' for listening for a signal
- * through shared memory */
-int shm_lock = 0;
-char * shm;
-char shm_key[30];
-
-void set_shm() {
-	size_t s = 1;
-	memset(shm_key, 0, 30);
-	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
-	char pid_str[5];
-	memset(pid_str, 0, 5);
-	sprintf(pid_str, "%d", parent_pid);
-	strcat(shm_key, pid_str);
-
-	shm = (char*) syscall_shm_obtain(shm_key, &s);
-	memset(shm, 0, 5);
-}
-
-int listen_to_shm(){
-	int ret = 0;
-	spin_lock(&shm_lock);
-	if(shm[0]!=0){
-		shm[0] = 0;
-		ret = 1;
-	}
-	spin_unlock(&shm_lock);
-	return ret;
-}
-
 void sig_tstp(int sig) {
 	sigcont = 0;
 	if (child) kill(child, sig);
@@ -923,7 +898,7 @@ void sig_kill(int sig){
 }
 
 int main(int argc, char ** argv) {
-	/*XXX main comment*/
+	/*XXX main comment for CTRL+F convenience*/
 	int last_ret = 0;
 
 	pid = getpid();
@@ -961,7 +936,7 @@ int main(int argc, char ** argv) {
 		}
 	}
 
-	if(parent_pid >= 0) set_shm();
+	if(parent_pid >= 0) init_shm();
 
 	shell_interactive = 1;
 
@@ -1108,43 +1083,6 @@ uint32_t shell_cmd_togtime(int argc, char * argv[]) {
 	return 0;
 }
 
-uint32_t shmon_nextshell(char * switch_user) {
-	size_t s = 24;
-	char * shm;
-
-	if(switch_user!=NULL) {
-		/* Send switch_user to shmon, and wait for pid to be set */
-		shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
-		char msg[20];
-		sprintf(msg, "-%c:%s\n", SHM_CTRL_GRAB_PID, switch_user);
-		strcpy(shm, msg);
-
-		while(shm[0]) usleep(10000); /* Wait for monitor to read and clear out the buffer */
-	}
-
-	/* At this moment, we got ourselves the right PID for the next shell */
-	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
-	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
-	int nextshell_pid_int = atoi(nextshell_pid);
-
-	return nextshell_pid_int == parent_pid ? -1 : nextshell_pid_int;
-}
-
-void send_kill_msg_login(int pid){
-	size_t s = 1;
-	char shm_key[30];
-	memset(shm_key, 0, 30);
-	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
-	char pid_str[5];
-	memset(pid_str, 0, 5);
-	sprintf(pid_str, "%d", pid);
-	strcat(shm_key, pid_str);
-	char * shm = (char*) syscall_shm_obtain(shm_key, &s);
-
-	shm[0] = 1; /* just a flag */
-	while(shm[0]) usleep(10000);
-}
-
 uint32_t shell_cmd_su(int argc, char * argv[]) {
 	if(argc < 2) {
 		fprintf(stderr, "su: usage: su username\n");
@@ -1159,13 +1097,12 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 	char * switch_user = argv[1];
 
 	/* Check if switch_user exists */
-	if(switch_user!=NULL && !getpwnam(switch_user)){
+	if(switch_user != NULL && !getpwnam(switch_user)){
 		fprintf(stderr, "the account '%s' does not exist\n", switch_user);
 		return 1;
 	}
 
-	int next_sh_pid = shmon_nextshell(switch_user);
-
+	int next_sh_pid = shmon_nextshell(switch_user, parent_pid);
 	if(next_sh_pid < 0 && switch_user!=NULL) {
 		/* User is already logged in */
 		fprintf(stderr, "the account '%s' is already logged in\n", switch_user);

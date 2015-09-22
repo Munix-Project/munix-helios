@@ -27,84 +27,13 @@
 
 #define LINE_LEN 1024
 
+extern char shm_key[30];
+
 static uint8_t already_saw_motd = 0;
 char * passed_username = NULL;
 uint32_t child = 0;
 uint8_t multishell_cont = 0;
 uint8_t just_exited = 0;
-
-int shm_lock = 0;
-char * shm;
-char shm_key[30];
-
-
-int shmon_get_user(char * username) {
-	int ret_pid = -1;
-
-	size_t s = 0;
-	char * shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
-	char cmd[20];
-	sprintf(cmd, "-%c:%s\n", SHM_CTRL_GET_USR, username);
-	strcpy(shm, cmd); /* send the message to 'terminal' process */
-
-	while(shm[0]) usleep(10000); /* wait for acknowledge */
-
-	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
-	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
-	ret_pid = atoi(nextshell_pid);
-
-	return ret_pid;
-}
-
-void shmon_send_user(char * username) {
-	size_t s = 0;
-
-	char * shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
-	char cmd[20];
-	sprintf(cmd, "-%c:%s\n%d", SHM_CTRL_ADD_USR, username, getpid());
-	strcpy(shm, cmd);
-
-	while(shm[0]) usleep(10000); /* wait for acknowledge */
-}
-
-void send_kill_msg_login(int pid){
-	size_t s = 1;
-	char shm_key[30];
-	memset(shm_key, 0, 30);
-	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
-	char pid_str[5];
-	memset(pid_str, 0, 5);
-	sprintf(pid_str, "%d", pid);
-	strcat(shm_key, pid_str);
-	char * shm = (char*) syscall_shm_obtain(shm_key, &s);
-
-	shm[0] = 1; /* just a flag */
-	while(shm[0]) usleep(10000);
-}
-
-void set_shm() {
-	size_t s = 1;
-	memset(shm_key, 0, 30);
-	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
-	char pid_str[5];
-	memset(pid_str, 0, 5);
-	sprintf(pid_str, "%d", getpid());
-	strcat(shm_key, pid_str);
-
-	shm = (char*) syscall_shm_obtain(shm_key, &s);
-	memset(shm, 0, 5);
-}
-
-int listen_to_shm(){
-	int ret = 0;
-	spin_lock(&shm_lock);
-	if(shm[0]!=0){
-		shm[0] = 0;
-		ret = 1;
-	}
-	spin_unlock(&shm_lock);
-	return ret;
-}
 
 void sig_pass(int sig) {
 	/* Pass onto the shell */
@@ -145,7 +74,7 @@ int main(int argc, char ** argv) {
 	signal(SIGCONT,  sig_cont);
 	signal(SIGKILL,  sig_kill);
 
-	set_shm();
+	init_shm();
 
 	if(argc>1) {
 		int c;

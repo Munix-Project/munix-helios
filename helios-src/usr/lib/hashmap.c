@@ -15,9 +15,8 @@ unsigned int hashmap_string_hash(void * _key) {
 	int c;
 	/* This is the so-called "sdbm" hash. It comes from a piece of
 	 * public domain code from a clone of ndbm. */
-	while ((c = *key++)) {
+	while ((c = *key++))
 		hash = c + (hash << 6) + (hash << 16) - hash;
-	}
 	return hash;
 }
 
@@ -44,7 +43,6 @@ void * hashmap_int_dupe(void * key) {
 static void hashmap_int_free(void * ptr) {
 	return;
 }
-
 
 hashmap_t * hashmap_create(int size) {
 	hashmap_t * map = malloc(sizeof(hashmap_t));
@@ -119,9 +117,8 @@ void * hashmap_get(hashmap_t * map, void * key) {
 		return NULL;
 	} else {
 		do {
-			if (map->hash_comp(x->key, key)) {
+			if (map->hash_comp(x->key, key))
 				return x->value;
-			}
 			x = x->next;
 		} while (x);
 		return NULL;
@@ -168,9 +165,8 @@ int hashmap_has(hashmap_t * map, void * key) {
 		return 0;
 	} else {
 		do {
-			if (map->hash_comp(x->key, key)) {
+			if (map->hash_comp(x->key, key))
 				return 1;
-			}
 			x = x->next;
 		} while (x);
 		return 0;

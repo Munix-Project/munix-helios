@@ -1,6 +1,7 @@
 #!/bin/bash
 
-EMU=qemu-system-i386
+ARCH=x86_64
+EMU=qemu-system-$ARCH
 EMUAPPEND="logtoserial=1 start=--vga root=/dev/hda"
 MEMSIZE=1024
 KERNELPATH=/home/miguel/git/munix/munix_toolchain
@@ -14,5 +15,5 @@ MODS=$(echo $MODS | sed "s@ @@g") # Remove empty spaces
 MODS=$(echo $MODS | sed "s@,@.ko,$PR/@g") # Replace commas with the prefix and sufixes
 MODS="$PR/$MODS.ko" # Fix it up by adding the last two pieces
 
-printf "==========\nLaunching QEMU i386 . . .\n==========\n"
+printf "==========\nLaunching QEMU $ARCH . . .\n==========\n"
 $EMU -initrd $MODS -hda $DISKFILE -sdl -kernel $KERNELPATH/$KERNEL -serial stdio -vga std -rtc base=localtime -net nic,model=rtl8139 -net user -soundhw pcspk,ac97 -net dump -no-kvm-irqchip -m $MEMSIZE -append "$EMUAPPEND"

@@ -1,11 +1,7 @@
 #ifndef HELIOS_SRC_USR_INCLUDE_TERMINAL_TERMINAL_H_
 #define HELIOS_SRC_USR_INCLUDE_TERMINAL_TERMINAL_H_
 
-#ifdef _KERNEL_
-# include <types.h>
-#else
 #include <stdint.h>
-#endif
 
 #define TERM_BUF_LEN 128
 

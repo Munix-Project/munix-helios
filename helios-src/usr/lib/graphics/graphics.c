@@ -8,9 +8,9 @@
  *
  */
 
+#include <drivers/video/video.h>
 #include <graphics/graphics.h>
 #include <stdint.h>
-#include <drivers/gpu/video.h>
 #include <sys/types.h>
 #include <termios.h>
 #include <sys/ioctl.h>

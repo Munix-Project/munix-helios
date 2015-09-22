@@ -4,6 +4,7 @@
  */
 
 #include <pthread_os.h>
+#include <stdlib.h>
 
 #define PTHREAD_STACK_SIZE 0x100000
 

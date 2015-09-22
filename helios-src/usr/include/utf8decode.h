@@ -1,7 +1,6 @@
 #ifndef HELIOS_SRC_USR_LIB_UTF8DECODE_H_
 #define HELIOS_SRC_USR_LIB_UTF8DECODE_H_
 
-
 #include <stdint.h>
 
 #define UTF8_ACCEPT 0
@@ -24,8 +23,7 @@ static const uint8_t utf8d[] = {
 	1,3,1,1,1,1,1,3,1,3,1,1,1,1,1,1,1,3,1,1,1,1,1,1,1,1,1,1,1,1,1,1, // s7..s8
 };
 
-static uint32_t inline
-decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
+static uint32_t inline decode(uint32_t* state, uint32_t* codep, uint32_t byte) {
 	uint32_t type = utf8d[byte];
 
 	*codep = (*state != UTF8_ACCEPT) ?

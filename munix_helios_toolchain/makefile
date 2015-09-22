@@ -11,6 +11,7 @@ RM := rm -rf
 -include helios-src/usr/lib/string/subdir.mk
 -include helios-src/usr/lib/security/crypt/subdir.mk
 -include helios-src/usr/lib/security/subdir.mk
+-include helios-src/usr/lib/memory/subdir.mk
 -include helios-src/usr/lib/graphics/subdir.mk
 -include helios-src/usr/lib/file/subdir.mk
 -include helios-src/usr/lib/subdir.mk

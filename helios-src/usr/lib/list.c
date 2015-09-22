@@ -143,20 +143,17 @@ list_t * list_create(void) {
 }
 
 node_t * list_find(list_t * list, void * value) {
-	foreach(item, list) {
-		if (item->value == value) {
+	foreach(item, list)
+		if (item->value == value)
 			return item;
-		}
-	}
 	return NULL;
 }
 
 int list_index_of(list_t * list, void * value) {
 	int i = 0;
 	foreach(item, list) {
-		if (item->value == value) {
+		if (item->value == value)
 			return i;
-		}
 		i++;
 	}
 	return -1; /* not found */
@@ -177,18 +174,15 @@ void list_remove(list_t * list, size_t index) {
 void list_delete(list_t * list, node_t * node) {
 	/* remove node from the list */
 	assert(node->owner == list && "Tried to remove a list node from a list it does not belong to.");
-	if (node == list->head) {
+	if (node == list->head)
 		list->head = node->next;
-	}
-	if (node == list->tail) {
+	if (node == list->tail)
 		list->tail = node->prev;
-	}
-	if (node->prev) {
+	if (node->prev)
 		node->prev->next = node->next;
-	}
-	if (node->next) {
+	if (node->next)
 		node->next->prev = node->prev;
-	}
+
 	node->prev = NULL;
 	node->next = NULL;
 	node->owner = NULL;
@@ -217,30 +211,23 @@ list_t * list_copy(list_t * original) {
 	/* Create a new copy of original */
 	list_t * out = list_create();
 	node_t * node = original->head;
-	while (node) {
+	while (node)
 		list_insert(out, node->value);
-	}
 	return out;
 }
 
 void list_merge(list_t * target, list_t * source) {
 	/* Destructively merges source into target */
-	foreach(node, source) {
+	foreach(node, source)
 		node->owner = target;
-	}
-	if (source->head) {
+	if (source->head)
 		source->head->prev = target->tail;
-	}
-	if (target->tail) {
+	if (target->tail)
 		target->tail->next = source->head;
-	} else {
+	else
 		target->head = source->head;
-	}
-	if (source->tail) {
+	if (source->tail)
 		target->tail = source->tail;
-	}
 	target->length += source->length;
 	free(source);
 }
-
-
