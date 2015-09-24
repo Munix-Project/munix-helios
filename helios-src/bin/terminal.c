@@ -57,9 +57,8 @@ static uint16_t max(uint16_t a, uint16_t b) {
 
 /* Write the contents of the buffer, as they were all non-escaped data. */
 static void ansi_dump_buffer(term_state_t * s) {
-	for (int i = 0; i < s->buflen; ++i) {
+	for (int i = 0; i < s->buflen; ++i)
 		s->callbacks->writer(s->buffer[i]);
-	}
 }
 
 /* Add to the internal buffer for the ANSI parser */
@@ -381,9 +380,8 @@ static void _ansi_put(term_state_t * s, char c) {
 					case ANSI_EL:
 						{
 							int what = 0, x = 0, y = 0;
-							if (argc >= 1) {
+							if (argc >= 1)
 								what = atoi(argv[0]);
-							}
 							if (what == 0) {
 								x = callbacks->get_csr_x();
 								y = s->width;

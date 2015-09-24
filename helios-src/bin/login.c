@@ -109,7 +109,7 @@ int main(int argc, char ** argv) {
 
 		/* Ask for username */
 		char * r;
-		if(just_exited) {
+		if(just_exited || !passed_username) {
 			printf("\e[47;30m%s login:\e[0m ", _hostname);
 			fflush(stdout);
 			r = fgets(username, 1024, stdin);
@@ -163,7 +163,7 @@ int main(int argc, char ** argv) {
 			/* Use shared memory instead of signals due to permission problems */
 			send_kill_msg_login(switch_pid);
 
-			/* KILL THIS SHELL AND LOGIN */
+			/* kill this shell and login processes*/
 			sig_pass(SIGKILL);
 			return 0;
 			_exit(EXIT_SUCCESS);

@@ -47,7 +47,7 @@ void spawn_shell(int forkno, char * user){
 				execv(tokens[0], tokens);
 			}
 		} else {
-			char * tokens[] = {"/bin/login", "-u", "root", NULL};
+			char * tokens[] = {"/bin/login",  NULL};
 			execv(tokens[0], tokens);
 		}
 	} else {
