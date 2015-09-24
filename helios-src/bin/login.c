@@ -25,6 +25,8 @@
 #include <spinlock.h>
 #include <shmon.h>
 
+extern int fileno(FILE *); /* eclipse can't find this declaration on stdio.h, so we put this here */
+
 #define LINE_LEN 1024
 
 extern char shm_key[30];
@@ -66,6 +68,13 @@ void sig_kill(int sig) {
 	exit(EXIT_FAILURE);
 }
 
+void show_intro() {
+	system("uname -a");
+	system("cat /etc/intro");
+	fflush(stdout);
+	printf("\n");
+}
+
 int main(int argc, char ** argv) {
 	signal(SIGINT, 	 sig_pass);
 	signal(SIGWINCH, sig_pass);
@@ -76,21 +85,19 @@ int main(int argc, char ** argv) {
 
 	init_shm();
 
-	if(argc>1) {
+	if(argc > 1) {
 		int c;
-		while((c = getopt(argc, argv, "u:q")) != -1)
+		while((c = getopt(argc, argv, "u:qi")) != -1)
 			switch(c){
 			case 'q':
 				/* Wait for the multishell monitor to allow this shellno to continue */
 				sig_tstp(SIGCONT);
 				break;
 			case 'u': passed_username = optarg; break;
+			case 'i': already_saw_motd = 1; break;
 			}
 	} else {
-		system("uname -a");
-		system("cat /etc/intro");
-		fflush(stdout);
-		printf("\n");
+		show_intro();
 	}
 
 	while (1) {
@@ -102,7 +109,7 @@ int main(int argc, char ** argv) {
 
 		/* Ask for username */
 		char * r;
-		if(just_exited || passed_username == NULL) {
+		if(just_exited) {
 			printf("\e[47;30m%s login:\e[0m ", _hostname);
 			fflush(stdout);
 			r = fgets(username, 1024, stdin);
@@ -113,7 +120,6 @@ int main(int argc, char ** argv) {
 				continue;
 			}
 			username[strlen(username)-1] = '\0';
-
 		} else {
 			strcpy(username, passed_username);
 		}
@@ -170,14 +176,14 @@ int main(int argc, char ** argv) {
 		shmon_send_user(username);
 
 		if(!already_saw_motd){
+			already_saw_motd = 1;
 			fprintf(stdout,"\n");
-			//fprintf(stdout, "\e[37;1;40m\n\n________________________________________________________________________________");
 			fflush(stdout);
 			system("cat /etc/motd");
-			fprintf(stdout,"\n"); fflush(stdout);
-			already_saw_motd = 1;
+			fprintf(stdout,"\n");
+			fflush(stdout);
 		} else fprintf(stdout, "\n\n");
-		fprintf(stdout,"\e[0m");
+		fprintf(stdout, "\e[0m");
 		fflush(stdout);
 
 		pid_t pid = getpid();
@@ -197,9 +203,9 @@ int main(int argc, char ** argv) {
 		} else {
 			child = f;
 			int result;
-			do {
+			do
 				result = waitpid(f, NULL, 0);
-			} while (result < 0);
+			while (result < 0);
 			just_exited = 1;
 		}
 		child = 0;

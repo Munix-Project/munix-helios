@@ -172,7 +172,7 @@ static void _ansi_put(term_state_t * s, char c) {
 					++argc;
 					if (argc > MAX_ARGS)
 						break;
-					pch = strtok_r(NULL, ";", &save);
+					pch = (char*)strtok_r(NULL, ";", &save);
 				}
 				/* Alright, let's do this */
 				switch (c) {
@@ -462,14 +462,14 @@ static void _ansi_put(term_state_t * s, char c) {
 				char * argv[MAX_ARGS]; /* escape arguments */
 				/* Get rid of the front of the buffer */
 				strtok_r(s->buffer, "]", &save);
-				pch = strtok_r(NULL, ";", &save);
+				pch = (char*)strtok_r(NULL, ";", &save);
 				/* argc = Number of arguments, obviously */
 				int argc = 0;
 				while (pch != NULL) {
 					argv[argc] = (char *)pch;
 					++argc;
 					if (argc > MAX_ARGS) break;
-					pch = strtok_r(NULL,";",&save);
+					pch = (char*)strtok_r(NULL,";",&save);
 				}
 				/* Start testing the first argument for what command to use */
 				if (argv[0]) {

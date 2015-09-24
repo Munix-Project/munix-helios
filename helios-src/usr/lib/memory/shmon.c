@@ -3,6 +3,8 @@
  *
  *  Created on: 22 Sep 2015
  *      Author: miguel
+ *
+ *  Creates multiple shell sessions, manages and stops them
  */
 
 #include <shmon.h>
@@ -24,7 +26,7 @@ char * shm_monitor_input;
 char * shm_monitor_output;
 
 static int shells_forked = 0;
-int shm_lock = 0;
+static int shm_lock = 0;
 hashmap_t * shellpid_hash;
 hashmap_t * multishell_sessions;
 
@@ -45,7 +47,7 @@ void spawn_shell(int forkno, char * user){
 				execv(tokens[0], tokens);
 			}
 		} else {
-			char * tokens[] = {"/bin/login", "-u" , "root" , NULL};
+			char * tokens[] = {"/bin/login", "-u", "root", NULL};
 			execv(tokens[0], tokens);
 		}
 	} else {
@@ -73,15 +75,14 @@ char * get_username_from_pid(int pid) {
 	char * username = NULL;
 	list_t * keys = hashmap_keys(multishell_sessions);
 	foreach(key,keys)
-		if(hashmap_get(multishell_sessions, key->value) == pid) {
+		if((int)hashmap_get(multishell_sessions, key->value) == pid) {
 			int usr_size = strlen(key->value);
 			username = malloc(sizeof(char) * usr_size);
 			memset(username, 0, usr_size);
 			memcpy(username, key->value, usr_size);
 			break;
 		}
-	list_free(keys);
-	free(keys);
+	list_freeall(keys);
 	return username;
 }
 
@@ -91,18 +92,12 @@ char * read_username_from_shm () {
 	for(usrname_size=0; shm_monitor_output[usrname_size+usrname_offset]!='\n' ;usrname_size++);
 	char * user = malloc(sizeof(char) * usrname_size);
 	memcpy(user, strchr(shm_monitor_output, ':') + 1, usrname_size - 1);
-	user[usrname_size-1] = '\0';
+	user[usrname_size - 1] = '\0';
 	return user;
 }
 
 int get_shellno_count() {
-	int count = 0;
-	list_t * keys = hashmap_keys(shellpid_hash);
-	foreach(key, keys)
-		count++;
-	list_free(keys);
-	free(keys);
-	return count;
+	return hashmap_size(shellpid_hash);
 }
 
 void monitor_multishell() {
@@ -144,7 +139,7 @@ void monitor_multishell() {
 
 					/* Update the other shellno's onward: */
 					for(int j = i;j < shellcount - 1;j++){
-						char * forkno_next_str[10];
+						char forkno_next_str[10];
 						sprintf(forkno_str, "%d", j);
 						sprintf(forkno_next_str, "%d", (j+1));
 						hashmap_set(shellpid_hash, forkno_str, hashmap_get(shellpid_hash,forkno_next_str));
@@ -170,7 +165,7 @@ void monitor_multishell() {
 						char * user = read_username_from_shm();
 
 						/* See if he is already logged (through the hashmap) */
-						if(hashmap_has(multishell_sessions, user)) {
+						if(hashmap_contains(multishell_sessions, user)) {
 							/* return the user's pid instead of the new one (if he's logged in) */
 							update_shm_shmon((int)hashmap_get(multishell_sessions, user));
 						} else {
@@ -187,7 +182,7 @@ void monitor_multishell() {
 						char * user = read_username_from_shm();
 						int pid = atoi((char*)strchr(shm_monitor_output, '\n') + 1);
 
-						hashmap_set(multishell_sessions, user, pid);
+						hashmap_set(multishell_sessions, user, (void*)pid);
 						free(user);
 						break;
 					}
@@ -195,7 +190,7 @@ void monitor_multishell() {
 						/* Grab process pid from user IF he exists */
 						/* Read the user from shared memory */
 						char * user = read_username_from_shm();
-						if(hashmap_has(multishell_sessions, user))
+						if(hashmap_contains(multishell_sessions, user))
 							update_shm_shmon((int)hashmap_get(multishell_sessions, user));
 						else
 							update_shm_shmon(-1);

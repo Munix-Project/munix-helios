@@ -38,13 +38,25 @@
 #include <shmon.h>
 #include <security/helios_auth.h>
 
+/* =============== Operating System data =============== */
 #define OS_HOSTNAME "helios"
+#define OS_EXPT_TERM "xterm"
+/* =============== Operating System data (END) ========= */
 
-#define PIPE_TOKEN "\xFF\xFFPIPE\xFF\xFF"
-
-/* Shared memory data */
+/* =============== Shared memory data =============== */
 char shm_key[30];
 char * shm;
+/* =============== Shared memory data (END) ========= */
+
+/* =============== Shell data ===================== */
+/* These extern function declarations are here because somehow eclipse can't find them on their headers.
+ * It compiles without these declarations though. */
+extern int fileno(FILE *);
+extern int setenv(const char *__string, const char *__value, int __overwrite);
+extern int putenv(char *__string);
+extern char * strtok_r(char *, const char *, char **);
+
+#define SHELL_PIPE_TOKEN "\xFF\xFFPIPE\xFF\xFF"
 
 /* A shell command is like a C program */
 typedef uint32_t(*shell_command_t) (int argc, char ** argv);
@@ -54,31 +66,68 @@ typedef uint32_t(*shell_command_t) (int argc, char ** argv);
 char * shell_commands[SHELL_COMMANDS];          /* Command names */
 shell_command_t shell_pointers[SHELL_COMMANDS]; /* Command functions */
 
-/* This is the number of actual commands installed */
+/* This is the number of actual commands installed (0 on startup obviously) */
 uint32_t shell_commands_len = 0;
 
-uint8_t show_time = 1;
+int shell_scroll = 0;
+char shell_temp[1024];
+int shell_interactive = 1;
+int shell_force_raw = 0;
 
+/* =============== Shell history variables ===================== */
 /* We also support history through a circular buffer. */
 #define SHELL_HISTORY_ENTRIES 128
 char * shell_history[SHELL_HISTORY_ENTRIES];
 int shell_history_count  = 0;
 int shell_history_offset = 0;
-int shell_scroll = 0;
-char   shell_temp[1024];
-
-int    shell_interactive = 1;
-int    shell_force_raw   = 0;
-
-int pid; /* Process ID of the shell */
-int parent_pid = -1;
+/* =============== Shell history variables (END) =============== */
+/* =============== Shell data (END) =============== */
 
 char * shell_history_prev(int item);
 
+/*=============== Bools ===================== */
+uint8_t sigcont = 0;
+uint8_t show_time = 1;
+/*=============== Bools (END) =============== */
+
+/*=============== Processes data ===================== */
+uint32_t pid; /* Process ID of the shell */
+uint32_t parent_pid = -1; /* Pid of shell's parent, most likely login. This is so we can kill it if we want */
+uint32_t child = 0; /* And the child of the shell */
+/*=============== Processes data (END) =============== */
+
+void sig_pass(int sig) {
+	/* Interrupt handler */
+	if (child)
+		kill(child, sig);
+}
+
+void sig_tstp(int sig) {
+	sigcont = 0;
+	if (child) kill(child, sig);
+	while(!sigcont){
+		if(parent_pid >= 0 && listen_to_shm()) {
+			sigcont = 1;
+			break;
+		}
+
+		usleep(100);
+	} /*wait for SIGCONT*/
+}
+
+void sig_cont(int sig) {
+	sigcont = 1;
+}
+
+void sig_kill(int sig){
+	sig_pass(sig);
+	exit(EXIT_FAILURE);
+}
+
 void shell_history_insert(char * str) {
-	if (str[strlen(str)-1] == '\n') {
+	if (str[strlen(str)-1] == '\n')
 		str[strlen(str)-1] = '\0';
-	}
+
 	if (shell_history_count) {
 		if (!strcmp(str, shell_history_prev(1))) {
 			free(str);
@@ -100,9 +149,8 @@ void shell_history_append_line(char * str) {
 		char ** s = &shell_history[(shell_history_count - 1 + shell_history_offset) % SHELL_HISTORY_ENTRIES];
 		char * c = malloc(strlen(*s) + strlen(str) + 2);
 		sprintf(c, "%s\n%s", *s, str);
-		if (c[strlen(c)-1] == '\n') {
+		if (c[strlen(c)-1] == '\n')
 			c[strlen(c)-1] = '\0';
-		}
 		free(*s);
 		*s = c;
 	} else {
@@ -154,7 +202,7 @@ void install_commands();
 #define LINE_LEN 4096
 
 /* Current working directory */
-char cwd[1024] = {'/',0};
+char cwd[1024] = {'/', 0};
 
 /* Username */
 char username[1024];
@@ -164,12 +212,11 @@ char _hostname[256];
 
 /* function to update the cached username */
 void getuser() {
-	char * tmp = getenv("USER");
-	if (tmp) {
-		strcpy(username, tmp);
-	} else {
+	char * tmp_usr = getenv("USER");
+	if (tmp_usr)
+		strcpy(username, tmp_usr);
+	else
 		sprintf(username, "%d", getuid());
-	}
 }
 
 void gethost() {
@@ -217,30 +264,20 @@ void draw_prompt(int ret) {
 	char * home = getenv("HOME");
 	if (home && strstr(cwd, home) == cwd) {
 		char * c = cwd + strlen(home);
-		if (*c == '/' || *c == 0) {
+		if (*c == '/' || *c == 0)
 			sprintf(_cwd, "~%s", c);
-		}
 	}
 
 	/* Print the prompt. */
 	gethost(); /* Update host */
 	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s", username, _hostname, _cwd);
 	if(show_time)
-		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u",(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
+		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u", (int)(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);
 	if (ret != 0)
 		printf(" \e[0m[\033[38;5;167mret: %d\e[0m] ", ret);
 	printf("\033[0m%s\033[0m ", getuid() < 1000 ? "\033[1;38;5;196m#" : "\033[1;38;5;47m$");
 	printf("\e[0m");
 	fflush(stdout);
-}
-
-uint32_t child = 0;
-
-void sig_pass(int sig) {
-	/* Interrupt handler */
-	if (child) {
-		kill(child, sig);
-	}
 }
 
 void redraw_prompt_func(rline_context_t * context) {
@@ -263,7 +300,7 @@ void tab_complete_func(rline_context_t * context) {
 
 	memcpy(buf, context->buffer, 1024);
 
-	pch = strtok_r(buf, " ", &save);
+	pch = (char*)strtok_r(buf, " ", &save);
 	cmd = pch;
 
 	char * argv[1024];
@@ -276,7 +313,7 @@ void tab_complete_func(rline_context_t * context) {
 		while (pch != NULL) {
 			argv[argc] = (char *)pch;
 			++argc;
-			pch = strtok_r(NULL, " ", &save);
+			pch = (char*)strtok_r(NULL, " ", &save);
 		}
 	}
 
@@ -291,9 +328,8 @@ void tab_complete_func(rline_context_t * context) {
 			fprintf(stderr, "\n");
 			for (int i = 0; i < shell_commands_len; ++i) {
 				fprintf(stderr, "%s", shell_commands[i]);
-				if (i < shell_commands_len - 1) {
+				if (i < shell_commands_len - 1)
 					fprintf(stderr, ", ");
-				}
 			}
 			fprintf(stderr, "\n");
 			context->callbacks->redraw_prompt(context);
@@ -313,9 +349,8 @@ void tab_complete_func(rline_context_t * context) {
 				list_free(matches);
 				return;
 			} else if (matches->length == 1) {
-				for (int j = 0; j < strlen(context->buffer); ++j) {
+				for (int j = 0; j < strlen(context->buffer); ++j)
 					printf("\010 \010");
-				}
 				printf("%s", match);
 				fflush(stdout);
 				memcpy(context->buffer, match, strlen(match) + 1);
@@ -337,7 +372,6 @@ void tab_complete_func(rline_context_t * context) {
 					int x = strlen(tmp);
 					tmp[x] = match[x];
 					tmp[x+1] = '\0';
-					node_t * node;
 					foreach(node, matches) {
 						char * match = (char *)node->value;
 						if (strstr(match, tmp) == match) {
@@ -351,14 +385,12 @@ void tab_complete_func(rline_context_t * context) {
 				context->offset = context->collected;
 				j = 0;
 				fprintf(stderr, "\n");
-				node_t * node;
 				foreach(node, matches) {
 					char * match = (char *)node->value;
 					fprintf(stderr, "%s", match);
 					++j;
-					if (j < matches->length) {
+					if (j < matches->length)
 						fprintf(stderr, ", ");
-					}
 				}
 				fprintf(stderr, "\n");
 				context->callbacks->redraw_prompt(context);
@@ -554,7 +586,7 @@ int shell_exec(char * buffer, int buffer_size) {
 			buffer = shell_history_get(x - 1);
 			buffer_size = strlen(buffer);
 		} else {
-			fprintf(stderr, "esh: !%d: event not found\n", x);
+			fprintf(stderr, "esh: !%d: event not found\n", (int)x);
 			return 0;
 		}
 	}
@@ -663,7 +695,7 @@ int shell_exec(char * buffer, int buffer_size) {
 					goto _just_add;
 				case '|':
 					if (!quoted && !backtick && !collected) {
-						collected = sprintf(buffer_, "%s", PIPE_TOKEN);
+						collected = sprintf(buffer_, "%s", SHELL_PIPE_TOKEN);
 						goto _new_arg;
 					} break;
 				default:
@@ -722,7 +754,7 @@ _done:
 	foreach(node, args) {
 		char * c = node->value;
 
-		if (!strcmp(c, PIPE_TOKEN)) {
+		if (!strcmp(c, SHELL_PIPE_TOKEN)) {
 			argv[i] = 0;
 			i++;
 			cmdi++;
@@ -736,9 +768,8 @@ _done:
 	}
 	argv[i] = NULL;
 
-	if (i == 0) {
+	if (i == 0)
 		return 0;
-	}
 
 	list_free(args);
 
@@ -748,9 +779,8 @@ _done:
 	unsigned int child_pid;
 
 	int nowait = (!strcmp(argv[tokenid-1],"&"));
-	if (nowait) {
+	if (nowait)
 		argv[tokenid-1] = NULL;
-	}
 
 	if (shell_force_raw) set_unbuffered();
 
@@ -795,9 +825,8 @@ _done:
 			return func(argcs[0], arg_starts[0]);
 		} else {
 			child_pid = fork();
-			if (!child_pid) {
+			if (!child_pid)
 				run_cmd(arg_starts[0]);
-			}
 		}
 	}
 
@@ -806,9 +835,9 @@ _done:
 	if (!nowait) {
 		child = child_pid;
 		int pid;
-		do {
+		do
 			pid = waitpid(-1, &ret_code, 0);
-		} while (pid != -1 || (pid == -1 && errno != ECHILD));
+		while (pid != -1 || (pid == -1 && errno != ECHILD));
 		child = 0;
 	}
 	tcsetpgrp(STDIN_FILENO, getpid());
@@ -866,43 +895,17 @@ void show_usage(int argc, char * argv[]) {
 			"usage: %s [-lha] [path]\n"
 			"\n"
 			" -c \033[4mcmd\033[0m \033[3mparse and execute cmd\033[0m\n"
-			//-c cmd \033[...
 			" -v     \033[3mshow version information\033[0m\n"
 			" -?     \033[3mshow this help text\033[0m\n"
 			"\n", argv[0]);
 	fflush(stdout);
 }
 
-uint8_t sigcont = 0;
-
-void sig_tstp(int sig) {
-	sigcont = 0;
-	if (child) kill(child, sig);
-	while(!sigcont){
-		if(parent_pid >= 0 && listen_to_shm()) {
-			sigcont = 1;
-			break;
-		}
-
-		usleep(100);
-	} /*wait for SIGCONT*/
-}
-
-void sig_cont(int sig) {
-	sigcont = 1;
-}
-
-void sig_kill(int sig){
-	sig_pass(sig);
-	exit(EXIT_FAILURE);
-}
-
-int main(int argc, char ** argv) {
-	/*XXX main comment for CTRL+F convenience*/
-	int last_ret = 0;
-
+void init_shell() {
+	shell_interactive = 1;
 	pid = getpid();
 
+	/* Set up signal handlers: */
 	signal(SIGINT, sig_pass);
 	signal(SIGWINCH, sig_pass);
 	signal(SIGTSTP, sig_tstp);
@@ -916,15 +919,24 @@ int main(int argc, char ** argv) {
 	add_path_contents();
 	sort_commands();
 
+	if(parent_pid >= 0)
+		init_shm();
+}
+
+int main(int argc, char ** argv) {
+	/*XXX main comment for CTRL+F convenience*/
+
 	if (argc > 1) {
 		int c;
 		while ((c = getopt(argc, argv, "p:c:v?")) != -1) {
 			switch (c) {
 				case 'c':
+					init_shell();
 					shell_interactive = 0;
 					return shell_exec(optarg, strlen(optarg));
 				case 'p':
 					parent_pid = atoi(optarg);
+					init_shell();
 					break;
 				case 'v':
 					show_version();
@@ -936,10 +948,7 @@ int main(int argc, char ** argv) {
 		}
 	}
 
-	if(parent_pid >= 0) init_shm();
-
-	shell_interactive = 1;
-
+	int last_ret = 0;
 	while (1) {
 		draw_prompt(last_ret);
 		char buffer[LINE_LEN] = {0};
@@ -971,15 +980,13 @@ uint32_t shell_cmd_cd(int argc, char * argv[]) {
 	} else /* argc < 2 */ {
 		char * home = getenv("HOME");
 		if (home) {
-			if (chdir(home)) {
+			if (chdir(home))
 				goto cd_error;
-			}
 		} else {
 			char home_path[512];
 			sprintf(home_path, "/home/%s", username);
-			if (chdir(home_path)) {
+			if (chdir(home_path))
 				goto cd_error;
-			}
 		}
 	}
 	return 0;
@@ -1013,7 +1020,7 @@ uint32_t shell_cmd_exit(int argc, char * argv[]) {
 
 uint32_t shell_cmd_set(int argc, char * argv[]) {
 	char * term = getenv("TERM");
-	if (!term || strstr(term, "munix") != term) {
+	if (!term || strstr(term, OS_EXPT_TERM) != term) {
 		fprintf(stderr, "Unrecognized terminal.\n");
 		return 1;
 	}
@@ -1027,12 +1034,10 @@ uint32_t shell_cmd_set(int argc, char * argv[]) {
 			fprintf(stderr, "%s %s [0 or 1]\n", argv[0], argv[1]);
 			return 1;
 		}
-		int i = atoi(argv[2]);
-		if (i) {
+		if (atoi(argv[2]))
 			printf("\033[2001z");
-		} else {
+		else
 			printf("\033[2000z");
-		}
 		fflush(stdout);
 		return 0;
 	} else if (!strcmp(argv[1], "scale")) {
@@ -1159,11 +1164,10 @@ uint32_t shell_cmd_sudo(int argc, char * argv[]) {
 		}
 
 		char ** args = &argv[1];
-		int i = execvp(args[0], args);
-		fprintf(stderr, "%s: %s (%d): command not found\n", argv[0], args[0], i);
+		int ret = execvp(args[0], args);
+		fprintf(stderr, "%s: %s (%d): command not found\n", argv[0], args[0], ret);
 		return 1;
 	}
-
 	return 1;
 }
 
@@ -1179,4 +1183,5 @@ void install_commands() {
 	shell_install_command("su", 	 shell_cmd_su);
 	shell_install_command("sudo", 	 shell_cmd_sudo);
 	/* TODO: Add command expr here */
+	/* TODO: And a lot more commands too */
 }

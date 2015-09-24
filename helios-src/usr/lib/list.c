@@ -30,6 +30,11 @@ void list_free(list_t * list) {
 	}
 }
 
+void list_freeall(list_t * list) {
+	list_free(list);
+	free(list);
+}
+
 void list_append(list_t * list, node_t * node) {
 	//assert(!(node->next || node->prev) && "Node is already in a list.");
 	node->next = NULL;

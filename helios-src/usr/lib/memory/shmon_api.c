@@ -16,9 +16,10 @@
 #include <stdlib.h>
 #include <syscall.h>
 
-char shm_key[30];
-int shm_lock = 0;
-char * shm;
+static char shm_key[30];
+static int shm_lock = 0;
+static char * shm;
+
 /* These functions are used for login.c: */
 
 int shmon_get_user(char * username) {
@@ -95,7 +96,7 @@ uint32_t shmon_nextshell(char * switch_user, int parent_pid) {
 	size_t s = 24;
 	char * shm;
 
-	if(switch_user != NULL) {
+	if(switch_user) {
 		/* Send switch_user to shmon, and wait for pid to be set */
 		shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
 		char msg[20];

@@ -157,7 +157,7 @@ void * hashmap_remove(hashmap_t * map, void * key) {
 	}
 }
 
-int hashmap_has(hashmap_t * map, void * key) {
+int hashmap_contains(hashmap_t * map, void * key) {
 	unsigned int hash = map->hash_func(key) % map->size;
 
 	hashmap_entry_t * x = map->entries[hash];
@@ -213,4 +213,13 @@ void hashmap_free(hashmap_t * map) {
 		}
 	}
 	free(map->entries);
+}
+
+int hashmap_size(hashmap_t * hash) {
+	int count = 0;
+	list_t * keys = hashmap_keys(hash);
+	foreach(key, keys)
+		count++;
+	list_freeall(keys);
+	return count;
 }

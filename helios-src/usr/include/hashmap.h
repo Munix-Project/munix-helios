@@ -29,7 +29,7 @@ hashmap_t * hashmap_create_int(int size);
 void * hashmap_set(hashmap_t * map, void * key, void * value);
 void * hashmap_get(hashmap_t * map, void * key);
 void * hashmap_remove(hashmap_t * map, void * key);
-int hashmap_has(hashmap_t * map, void * key);
+int hashmap_contains(hashmap_t * map, void * key);
 list_t * hashmap_keys(hashmap_t * map);
 list_t * hashmap_values(hashmap_t * map);
 void hashmap_free(hashmap_t * map);
@@ -37,5 +37,8 @@ void hashmap_free(hashmap_t * map);
 unsigned int hashmap_string_hash(void * key);
 int hashmap_string_comp(void * a, void * b);
 void * hashmap_string_dupe(void * key);
+
+/* Functions added: */
+int hashmap_size(hashmap_t * hash);
 
 #endif /* HELIOS_SRC_USR_INCLUDE_HASHMAP_H_ */

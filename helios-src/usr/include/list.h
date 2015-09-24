@@ -41,4 +41,7 @@ node_t * list_insert_before(list_t * list, node_t * after, void * item);
 #define foreach(i, list) for (node_t * i = (list)->head; i != NULL; i = i->next)
 #define foreachr(i, list) for (node_t * i = (list)->tail; i != NULL; i = i->prev)
 
+/* Functions added: */
+void list_freeall(list_t * list);
+
 #endif /* HELIOS_SRC_USR_INCLUDE_LIST_H_ */
