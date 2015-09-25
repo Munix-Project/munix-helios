@@ -52,12 +52,14 @@ void setupOS(void){
 	set_hostname();
 }
 
-void run(char * args[]){
+void run(char * args[], uint8_t parent_wait){
 	int pid = fork();
 	if(!pid) {
 		execvp(args[0], args);
 		exit(0);
 	} else {
+		if(!parent_wait) return;
+
 		int pid = 0;
 		do
 			pid = wait(NULL);
@@ -65,14 +67,22 @@ void run(char * args[]){
 	}
 }
 
+void run_essential() {
+	/* Launch Shared Memory manager */
+	run((char*[]){"/usr/bin/shman", NULL}, 0);
+}
+
 int main(int argc, char * argv[]) {
 	/* Prepare OS, which include configs and initializations */
 	setupOS();
 
+	/* Launch important programs, for example resource managers */
+	run_essential();
+
 	/* All is configured for startup, launch the terminal / GUI */
 #if 0 /* TODO: Remove this macro after testing with GUI is done */
-	run((char *[]){"/usr/bin/start", NULL});
+	run((char *[]){"/usr/bin/start", NULL}, 1);
 #else
-	run((char*[]){"/bin/terminal", "-l", NULL});
+	run((char*[]){"/bin/terminal", "-l", NULL}, 1);
 #endif
 }

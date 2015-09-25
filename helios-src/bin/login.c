@@ -30,6 +30,7 @@ extern int fileno(FILE *); /* eclipse can't find this declaration on stdio.h, so
 #define LINE_LEN 1024
 
 extern char shm_key[30];
+char * shm;
 
 static uint8_t already_saw_motd = 0;
 char * passed_username = NULL;
@@ -54,7 +55,7 @@ void sig_tstp(int sig) {
 	if (child) kill(child, sig);
 
 	while(!multishell_cont){
-		if(listen_to_shm()) break;
+		if(listen_to_shm(shm_key, shm)) break;
 		usleep(100); /*wait for SIGCONT and reap flag*/
 	}
 }
@@ -75,6 +76,19 @@ void show_intro() {
 	printf("\n");
 }
 
+struct termios disable_echo() {
+	struct termios old, new;
+	tcgetattr(fileno(stdin), &old);
+	new = old;
+	new.c_lflag &= (~ECHO);
+	tcsetattr(fileno(stdin), TCSAFLUSH, &new);
+	return old;
+}
+
+void restore_echo(struct termios original_term) {
+	tcsetattr(fileno(stdin), TCSAFLUSH, &original_term);
+}
+
 int main(int argc, char ** argv) {
 	signal(SIGINT, 	 sig_pass);
 	signal(SIGWINCH, sig_pass);
@@ -83,7 +97,7 @@ int main(int argc, char ** argv) {
 	signal(SIGCONT,  sig_cont);
 	signal(SIGKILL,  sig_kill);
 
-	init_shm();
+	shm = init_shm();
 
 	if(argc > 1) {
 		int c;
@@ -129,17 +143,12 @@ int main(int argc, char ** argv) {
 		sprintf(for_msg, " for %s", username);
 		printf("\e[47;30m  password%s:  \e[0m ", passed_username != NULL ? for_msg : "");
 		fflush(stdout);
-		/* Disable echo */
-		struct termios old, new;
-		tcgetattr(fileno(stdin), &old);
-		new = old;
-		new.c_lflag &= (~ECHO);
-		tcsetattr(fileno(stdin), TCSAFLUSH, &new);
+		struct termios old = disable_echo();
 
 		r = fgets(password, 1024, stdin);
 		if (!r) {
 			clearerr(stdin);
-			tcsetattr(fileno(stdin), TCSAFLUSH, &old);
+			restore_echo(old);
 			fprintf(stderr, "\n");
 			fprintf(stderr, "\nLogin failed.\n");
 			continue;

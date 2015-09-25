@@ -16,11 +16,15 @@
 #include <stdlib.h>
 #include <syscall.h>
 
-static char shm_key[30];
-static int shm_lock = 0;
-static char * shm;
+char shm_key[30];
+int shm_lock = 0;
+char * shm;
 
-/* These functions are used for login.c: */
+size_t s = 24;
+
+/* TODO: Implement a proper general purpose shared memory library. Not this API which only works for logging in and out */
+
+/* These next functions are used for login.c: */
 
 int shmon_get_user(char * username) {
 	int ret_pid = -1;
@@ -51,6 +55,26 @@ void shmon_send_user(char * username) {
 	while(shm[0]) usleep(10000); /* wait for acknowledge */
 }
 
+void shm_wait(char * shm_key) {
+	size_t s = 0;
+	char * shm = (char*)syscall_shm_obtain(shm_key, &s);
+	while(shm[0]) usleep(10000);
+}
+
+void shm_send(char * shm_key, char * packet) {
+	size_t s = 0;
+	strcpy((char*)syscall_shm_obtain(shm_key, &s), packet);
+}
+
+void shm_send_and_wait(char * shm_key, char * packet) {
+	shm_send(shm_key, packet);
+	shm_wait(shm_key);
+}
+
+/*
+ * Sends a message to the login process through shared memory
+ * In this case, we're using it to allow the login process to wake up and continue
+ */
 void send_kill_msg_login(int pid) {
 	size_t s = 1;
 	char shm_key[30];
@@ -63,10 +87,10 @@ void send_kill_msg_login(int pid) {
 	char * shm = (char*) syscall_shm_obtain(shm_key, &s);
 
 	shm[0] = 1; /* just a flag */
-	while(shm[0]) usleep(10000);
+	shm_wait(shm_key);
 }
 
-void init_shm() {
+char * init_shm() {
 	size_t s = 1;
 	memset(shm_key, 0, 30);
 	strcat(shm_key, SHM_SHELLMON_KILLITSELF);
@@ -77,12 +101,17 @@ void init_shm() {
 
 	shm = (char*) syscall_shm_obtain(shm_key, &s);
 	memset(shm, 0, 5);
+	return shm;
 }
 
-int listen_to_shm() {
+/*
+ * Listens to the shared memory flag without blocking the thread
+ */
+int listen_to_shm(char * shm_key, char * shm) {
+	size_t s  = 0;
 	int ret = 0;
 	spin_lock(&shm_lock);
-	if(shm[0]!=0){
+	if(shm[0]){
 		shm[0] = 0;
 		ret = 1;
 	}
@@ -90,25 +119,37 @@ int listen_to_shm() {
 	return ret;
 }
 
-/* These functions are used for sh.c: */
+/*
+ * Listens to the shared memory flag and also blocks the thread
+ */
+void listen_to_shm_block(char * shm_key, char * shm) {
+	while(!listen_to_shm(shm_key, shm)) usleep(10000);
+}
 
+char * shm_read(char * shm_key) {
+	return (char*)syscall_shm_obtain(shm_key, &s);
+}
+
+/* These next functions are used for sh.c: */
+
+/*
+ * Grabs pid from the next shell counting from where the user is currently logged in
+ */
 uint32_t shmon_nextshell(char * switch_user, int parent_pid) {
-	size_t s = 24;
-	char * shm;
-
 	if(switch_user) {
 		/* Send switch_user to shmon, and wait for pid to be set */
-		shm = (char*)syscall_shm_obtain(SHM_SHELLMON_OUT, &s);
 		char msg[20];
 		sprintf(msg, "-%c:%s\n", SHM_CTRL_GRAB_PID, switch_user);
-		strcpy(shm, msg);
-
-		while(shm[0]) usleep(10000); /* Wait for monitor to read and clear out the buffer */
+		/* Send packet to shared memory in order to allow the shmon component to output its data.
+		 * After sending, wait for monitor to read and clear out the buffer */
+		shm_send_and_wait(SHM_SHELLMON_OUT, msg);
 	}
 
 	/* At this moment, we got ourselves the right PID for the next shell */
-	shm = (char*)syscall_shm_obtain(SHM_SHELLMON_IN, &s);
-	char * nextshell_pid = (char*) (strchr(shm, ':') + 1);
+	shm = shm_read(SHM_SHELLMON_IN);
+	printf("reading pid: %s\n", shm);
+	fflush(stdout);
+	char * nextshell_pid = (char*) (strchr(shm, ':') + 1); /* grab pid */
 	int nextshell_pid_int = atoi(nextshell_pid);
 
 	return nextshell_pid_int == parent_pid ? -1 : nextshell_pid_int;

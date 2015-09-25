@@ -25,8 +25,9 @@ extern void monitor_multishell();
 extern uint32_t shmon_nextshell(char * switch_user, int parent_pid);
 extern void send_kill_msg_login(int pid);
 
-extern int listen_to_shm();
-extern void init_shm();
+extern int listen_to_shm(char * shm_key, char * shm);
+extern void listen_to_shm_block(char * shm_key, char * shm);
+extern char * init_shm();
 extern void send_kill_msg_login(int pid);
 extern void shmon_send_user(char * username);
 extern int shmon_get_user(char * username);

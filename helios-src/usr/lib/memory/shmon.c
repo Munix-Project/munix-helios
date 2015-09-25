@@ -30,6 +30,9 @@ static int shm_lock = 0;
 hashmap_t * shellpid_hash;
 hashmap_t * multishell_sessions;
 
+/*
+ * Creates a new shell session
+ */
 void spawn_shell(int forkno, char * user){
 	int shellpid;
 	if(!(shellpid = fork())) {
@@ -47,7 +50,7 @@ void spawn_shell(int forkno, char * user){
 				execv(tokens[0], tokens);
 			}
 		} else {
-			char * tokens[] = {"/bin/login",  NULL};
+			char * tokens[] = {"/bin/login", "-u", "root", NULL};
 			execv(tokens[0], tokens);
 		}
 	} else {
@@ -59,15 +62,20 @@ void spawn_shell(int forkno, char * user){
 	}
 }
 
+/*
+ * Updates the channel which sends to all other processes
+ */
 void update_shm_shmon(int pid){
 	char shmon_info[50];
 	sprintf(shmon_info, "newshell:%d", pid);
 	strcpy(shm_monitor_input, shmon_info);
+	printf("sending pid: %s\n", shmon_info);
+	fflush(stdout);
 }
 
 int get_pid_from_hash(int shellno) {
 	char shellno_str[5];
-	sprintf(shellno_str,"%d", shellno);
+	sprintf(shellno_str, "%d", shellno);
 	return (int)hashmap_get(shellpid_hash, shellno_str);
 }
 
@@ -156,7 +164,7 @@ void monitor_multishell() {
 			/* Use a lock/mutex on the shared memory resource */
 			spin_lock(&shm_lock);
 			/* Check if there's new requests: */
-			if(shm_monitor_output[0]!=0) {
+			if(shm_monitor_output[0]) { /* a new request was detected */
 				/* Process request */
 				if(shm_monitor_output[0] == '-') { /* We found a command for shmon */
 					switch(shm_monitor_output[1]) {
@@ -164,15 +172,14 @@ void monitor_multishell() {
 						/* Read the user from shared memory */
 						char * user = read_username_from_shm();
 
-						/* See if he is already logged (through the hashmap) */
+						/* See if he is already logged in (through the hashmap) */
 						if(hashmap_contains(multishell_sessions, user)) {
 							/* return the user's pid instead of the new one (if he's logged in) */
 							update_shm_shmon((int)hashmap_get(multishell_sessions, user));
 						} else {
 							/* the user is not logged in, spawn new shell */
 							spawn_shell(shells_forked, user);
-							update_shm_shmon(get_pid_from_hash(shells_forked));
-							shells_forked++;
+							update_shm_shmon(get_pid_from_hash(shells_forked++));
 						}
 						free(user);
 						break;

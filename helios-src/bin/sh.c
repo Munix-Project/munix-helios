@@ -67,7 +67,7 @@ char * shell_commands[SHELL_COMMANDS];          /* Command names */
 shell_command_t shell_pointers[SHELL_COMMANDS]; /* Command functions */
 
 /* This is the number of actual commands installed (0 on startup obviously) */
-uint32_t shell_commands_len = 0;
+uint32_t sh_cmd_count = 0;
 
 int shell_scroll = 0;
 char shell_temp[1024];
@@ -87,7 +87,7 @@ char * shell_history_prev(int item);
 
 /*=============== Bools ===================== */
 uint8_t sigcont = 0;
-uint8_t show_time = 1;
+uint8_t show_time = 0;
 /*=============== Bools (END) =============== */
 
 /*=============== Processes data ===================== */
@@ -95,7 +95,6 @@ uint32_t pid; /* Process ID of the shell */
 uint32_t parent_pid = -1; /* Pid of shell's parent, most likely login. This is so we can kill it if we want */
 uint32_t child = 0; /* And the child of the shell */
 /*=============== Processes data (END) =============== */
-
 void sig_pass(int sig) {
 	/* Interrupt handler */
 	if (child)
@@ -106,11 +105,10 @@ void sig_tstp(int sig) {
 	sigcont = 0;
 	if (child) kill(child, sig);
 	while(!sigcont){
-		if(parent_pid >= 0 && listen_to_shm()) {
+		if(parent_pid >= 0 && listen_to_shm(shm_key, shm)) {
 			sigcont = 1;
 			break;
 		}
-
 		usleep(100);
 	} /*wait for SIGCONT*/
 }
@@ -167,19 +165,20 @@ char * shell_history_prev(int item) {
 }
 
 void shell_install_command(char * name, shell_command_t func) {
-	if (shell_commands_len == SHELL_COMMANDS) {
+	if (sh_cmd_count == SHELL_COMMANDS) {
 		fprintf(stderr, "Ran out of space for static shell commands. The maximum number of commands is %d\n", SHELL_COMMANDS);
 		return;
 	}
-	shell_commands[shell_commands_len] = name;
-	shell_pointers[shell_commands_len] = func;
-	shell_commands_len++;
+	shell_commands[sh_cmd_count] = name;
+	shell_pointers[sh_cmd_count] = func;
+	sh_cmd_count++;
 }
 
 shell_command_t shell_find(char * str) {
-	for (uint32_t i = 0; i < shell_commands_len; ++i)
+	for (uint32_t i = 0; i < sh_cmd_count; ++i)
 		if (!strcmp(str, shell_commands[i]))
 			return shell_pointers[i];
+
 	return NULL;
 }
 
@@ -326,9 +325,9 @@ void tab_complete_func(rline_context_t * context) {
 				return;
 			}
 			fprintf(stderr, "\n");
-			for (int i = 0; i < shell_commands_len; ++i) {
+			for (int i = 0; i < sh_cmd_count; ++i) {
 				fprintf(stderr, "%s", shell_commands[i]);
-				if (i < shell_commands_len - 1)
+				if (i < sh_cmd_count - 1)
 					fprintf(stderr, ", ");
 			}
 			fprintf(stderr, "\n");
@@ -339,7 +338,7 @@ void tab_complete_func(rline_context_t * context) {
 			int j = 0;
 			list_t * matches = list_create();
 			char * match = NULL;
-			for (int i = 0; i < shell_commands_len; ++i) {
+			for (int i = 0; i < sh_cmd_count; ++i) {
 				if (strstr(shell_commands[i], argv[0]) == shell_commands[i]) {
 					list_insert(matches, shell_commands[i]);
 					match = shell_commands[i];
@@ -562,6 +561,7 @@ int variable_char(uint8_t c) {
 
 void run_cmd(char ** args) {
 	int i = execvp(*args, args);
+
 	shell_command_t func = shell_find(*args);
 	if (func) {
 		int argc = 0;
@@ -569,7 +569,7 @@ void run_cmd(char ** args) {
 			argc++;
 		i = func(argc, args);
 	} else {
-		if (i != 0) {
+		if (i) {
 			fprintf(stderr, "%s: Command not found\n", *args);
 			i = 127;
 		}
@@ -845,11 +845,11 @@ _done:
 	return ret_code;
 }
 
-void add_path_contents() {
-	DIR * dirp = opendir("/bin");
+void add_bin_progs(char * binpath) {
+	DIR * dirp = opendir(binpath);
 
 	struct dirent * ent = readdir(dirp);
-	while (ent != NULL) {
+	while (ent) {
 		if (ent->d_name[0] != '.') {
 			char * s = malloc(sizeof(char) * (strlen(ent->d_name) + 1));
 			memcpy(s, ent->d_name, strlen(ent->d_name) + 1);
@@ -872,12 +872,12 @@ static int comp_shell_commands(const void *p1, const void *p2) {
 
 void sort_commands() {
 	struct command commands[SHELL_COMMANDS];
-	for (int i = 0; i < shell_commands_len; ++i) {
+	for (int i = 0; i < sh_cmd_count; ++i) {
 		commands[i].string = shell_commands[i];
 		commands[i].func   = shell_pointers[i];
 	}
-	qsort(&commands, shell_commands_len, sizeof(struct command), comp_shell_commands);
-	for (int i = 0; i < shell_commands_len; ++i) {
+	qsort(&commands, sh_cmd_count, sizeof(struct command), comp_shell_commands);
+	for (int i = 0; i < sh_cmd_count; ++i) {
 		shell_commands[i] = commands[i].string;
 		shell_pointers[i] = commands[i].func;
 	}
@@ -916,16 +916,15 @@ void init_shell() {
 	gethost();
 
 	install_commands();
-	add_path_contents();
+	add_bin_progs("/bin");
 	sort_commands();
 
 	if(parent_pid >= 0)
-		init_shm();
+		shm = init_shm();
 }
 
 int main(int argc, char ** argv) {
 	/*XXX main comment for CTRL+F convenience*/
-
 	if (argc > 1) {
 		int c;
 		while ((c = getopt(argc, argv, "p:c:v?")) != -1) {
@@ -1108,7 +1107,7 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 	}
 
 	int next_sh_pid = shmon_nextshell(switch_user, parent_pid);
-	if(next_sh_pid < 0 && switch_user!=NULL) {
+	if(next_sh_pid < 0 && switch_user != NULL) {
 		/* User is already logged in */
 		fprintf(stderr, "the account '%s' is already logged in\n", switch_user);
 		return 1;
