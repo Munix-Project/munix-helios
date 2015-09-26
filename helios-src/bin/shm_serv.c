@@ -9,6 +9,11 @@
 #include <stdio.h>
 
 int main(int argc, char ** argv) {
-	shm_send_cmd(SHM_CMD_NEW_SERVER);
+	shm_t * serv = shman_create_server("serv_1");
+
+	printf("ret: s1 - %s\n", serv->shm_key);
+	fflush(stdout);
+
+	shman_stop(serv);
 	return 0;
 }

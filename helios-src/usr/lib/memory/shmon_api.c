@@ -61,13 +61,13 @@ void shm_wait(char * shm_key) {
 	while(shm[0]) usleep(10000);
 }
 
-void shm_send(char * shm_key, char * packet) {
+void shman_send(char * shm_key, char * packet) {
 	size_t s = 0;
 	strcpy((char*)syscall_shm_obtain(shm_key, &s), packet);
 }
 
 void shm_send_and_wait(char * shm_key, char * packet) {
-	shm_send(shm_key, packet);
+	shman_send(shm_key, packet);
 	shm_wait(shm_key);
 }
 

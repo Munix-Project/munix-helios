@@ -30,9 +30,7 @@ int main(int argc, char * argv[]) {
 			path = DEFAULT_PATH;
 
 		char * xpath = strdup(path);
-		int found = 0;
-		char * p, * tokens[10], * last;
-		int i = 0;
+		char * p, * last;
 		for ((p = strtok_r(xpath, ":", &last)); p; p = strtok_r(NULL, ":", &last)) {
 			int r;
 			struct stat stat_buf;
