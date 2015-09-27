@@ -268,7 +268,6 @@ void draw_prompt(int ret) {
 	}
 
 	/* Print the prompt. */
-	gethost(); /* Update host */
 	printf("\e[34;1m%s\e[33m@\e[36m%s\e[0m:\e[31;1m%s", username, _hostname, _cwd);
 	if(show_time)
 		printf("\e[s\e[%dC\e[0m[\e[31;1m%s %s\e[0m]\e[u", (int)(80-34-(strlen(_cwd) + strlen(_hostname) + strlen(username))), date_buffer, time_buffer);

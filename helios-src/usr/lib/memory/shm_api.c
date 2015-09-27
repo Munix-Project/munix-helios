@@ -9,7 +9,6 @@
 
 #include <shm.h>
 #include <syscall.h>
-#include <stdlib.h>
 
 /* Size of channel used between any process and the shared memory manager */
 size_t shman_size = SHMAN_SIZE;
@@ -42,9 +41,13 @@ void shman_stop(shm_t * shm_dev) {
  * 	The commands are:
  * 		* 1 - Create a new server
  * 		* 2 - Create a new client
- * 		* 3 - Send packet to server
+ * 		* 3 - Destroy server
+ * 		* 4 - Destroy client
+		* 5 - Send packet to server/client
+ * 		* 6 - Server listen for packet reception
  * 	[char cmd] - command to send
  * 	[char * packet] - packet/data to send
+ * 	[char packet_size] - size of the struct of the packet (e.g. sizeof(shm_t), or sizeof(shm_packet_t). Note: don't use sizeof(shm_t*) with the pointer)
  */
 void * shman_send(char cmd, void * packet, char packet_size) {
 	if(!is_shman_init)
@@ -60,28 +63,44 @@ void * shman_send(char cmd, void * packet, char packet_size) {
 	if(!shm_manager[1] && shm_manager[2])
 		return shm_manager[2]; /* Oops, this result is invalid. Return the error number */
 	else
-		return &shm_manager[2]; /* grab shm manager's acknowledge result, if there is one */
+		return get_packet_ptr(shm_manager); /* grab shm manager's acknowledge result, if there is one */
 }
 
 /* Function wrappers: */
 shm_t * shman_create_server(char * server_id) {
 	shm_t * server_from_shm = (shm_t*)shman_send(SHM_CMD_NEW_SERVER, server_id, strlen(server_id));
-	if(server_from_shm > SHM_NOERR) {
+	if(SHM_IS_ERR(server_from_shm)) {
+		/* We got an invalid response. Carry it to the process application */
+		return server_from_shm;
+	} else {
 		shm_t * new_server = malloc(sizeof(shm_t));
 		memcpy(new_server, server_from_shm, sizeof(shm_t));
 		return new_server;
-	} else {
-		return server_from_shm;
 	}
 }
 
 shm_t * shman_create_client(char * server_id) {
 	shm_t * client_from_shm = (shm_t*)shman_send(SHM_CMD_NEW_CLIENT, server_id, strlen(server_id));
-	if(client_from_shm > SHM_NOERR) {
+	if(SHM_IS_ERR(client_from_shm)) {
+		/* We got an invalid response. Carry it to the process application */
+		return client_from_shm;
+	} else {
 		shm_t * new_client = malloc(sizeof(shm_t));
 		memcpy(new_client, client_from_shm, sizeof(shm_t));
 		return new_client;
-	} else {
-		return client_from_shm;
 	}
+}
+
+int shman_server_listen(shm_t * server, shman_packet_cback callback) {
+	if(!is_shman_init) return SHM_ERR_NOINIT;
+	if(server->dev_type == SHM_DEV_CLIENT) return SHM_ERR_WRONGDEV;
+
+	/* Tell SHMAN we're going to start listening for requests */
+	shman_send(SHM_CMD_SERVER_LISTEN, server, sizeof(shm_t)); /* We don't want to receive anything. */
+
+	/* We're now listening. We should wait for acks that are for us, instead of
+	 * reacting to any ack that is broadcast from SHMAN */
+	for(;;);
+
+	return 0;
 }
