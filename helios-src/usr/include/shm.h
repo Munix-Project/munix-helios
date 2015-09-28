@@ -19,18 +19,21 @@
 extern size_t shman_size;
 
 /* Time in microseconds for the thread to wait for the polling */
-#define POLL_THREAD_SLEEP_USEC 0
+#define POLL_THREAD_SLEEP_USEC 100
 
 /* Shared memory key used to communicate with the SHM manager */
 #define SHM_RESKEY_SHMAN_CMD "shman_cmd" /* This key is reserved and shall not be used by another process */
+#define SHM_RESKEY_SHMAN_SENDCHANNEL "shman_schan"
 
 /* Max length of the string id's of the shm devices */
 #define SHM_MAX_ID_SIZE 16
 
 /* Size of the actual data packet */
-#define SHM_MAX_PACKET_DAT_SIZE SHMAN_SIZE - (SHM_MAX_ID_SIZE * 2) - 3
+#define SHM_MAX_PACKET_DAT_SIZE SHMAN_SIZE - (SHM_MAX_ID_SIZE * 2) - 3 - 3
 
 #define SHM_IS_ERR(no) no < SHM_NOERR
+
+#define SHM_PACKET_IS_IT_FOR_US(packet, dev) !strcmp(packet->to, dev->unique_id) && packet->from_type != dev->dev_type
 
 /*
  * Describes the type of device used by the Shared Memory Manager
@@ -50,7 +53,8 @@ enum shm_ret_error {
 	SHM_ERR_NOINIT = 4,
 	SHM_ERR_INVDEV = 5,
 	SHM_ERR_WRONGDEV = 6,
-	SHM_NOERR = 7
+	SHM_ERR_NOAUTH = 7,
+	SHM_NOERR = 8
 };
 
 /*
@@ -93,8 +97,8 @@ enum shm_packet_codes {
 typedef struct {
 	uint8_t dev_type;
 	uint8_t dev_status;
-	size_t shm_size;
-	void * shm;
+	char * shm;
+	char unique_id[SHM_MAX_ID_SIZE];
 	char shm_key[SHM_MAX_ID_SIZE];
 } shm_t;
 
@@ -102,30 +106,26 @@ typedef struct {
 typedef struct {
 	uint8_t from_type;
 	uint8_t to_type;
+	uint8_t dat_size;
 	char from[SHM_MAX_ID_SIZE];
 	char to[SHM_MAX_ID_SIZE];
 	char dat[SHM_MAX_PACKET_DAT_SIZE];
-	uint8_t dat_size;
 } shm_packet_t;
 
-typedef int (*shman_packet_cback)(shm_packet_t*);
+typedef struct {
+	char unique_id[SHM_MAX_ID_SIZE];
+	char server_id[SHM_MAX_ID_SIZE];
+} shm_id_unique_t;
+
+typedef char* (*shman_packet_cback)(shm_packet_t*);
 
 /* Shared memory manager API functions: */
 char * shman_start();
 void shman_stop(shm_t * shm_dev);
-void * shman_send(char cmd, void * packet, char packet_size);
+void * shman_send(char cmd, void * packet, uint8_t packet_size, shm_t * dev_for_ack);
 
 inline void thread_sleep() {
 	usleep(POLL_THREAD_SLEEP_USEC);
-}
-
-/*
- * Waits for acknowledgement on the shared memory.
- * WARNING: This method checks for ack in broadcast.
- * It does not check the destination ack.
- */
-inline void shm_wait_for_ack(char * shm) {
-	while(shm[0]) thread_sleep();
 }
 
 /*
@@ -134,6 +134,36 @@ inline void shm_wait_for_ack(char * shm) {
  */
 inline char * get_packet_ptr(char * shm) {
 	return &shm[2];
+}
+
+/*
+ * shm_wait_for_ack - Waits for acknowledgement on the shared memory.
+ * [char * shm] - Shared memory pointer
+ *
+ * WARNING: This method checks for ack in broadcast.
+ * It does not check the destination ack.
+ */
+inline void shm_wait_for_ack(char * shm) {
+	while(shm[0]) thread_sleep();
+}
+
+/*
+ * shm_wait_for_ack_withdev - Waits for acknowledgement on the shared memory.
+ * [char * shm] - Shared memory pointer
+ * [shm_t * dev] - Device destination
+ *
+ * This function only continues when it receives a packet that's for the device being inputted. Therefore, it will block the thread.
+ * It's use is mostly for the server side.
+*/
+inline void shm_wait_for_ack_withdev(char * shm, shm_t * dev) {
+	while(1) {
+		while(shm[0]) thread_sleep();
+		/* We got an ack, let's see if its for us... */
+		shm_packet_t * packet = (shm_packet_t*)get_packet_ptr(shm);
+		if(SHM_PACKET_IS_IT_FOR_US(packet, dev)) break; /*it's for us*/
+		/* Not our packet, wait till someone sends ack back to the shared memory manager to indicate they received the packet */
+		while(!shm[0]) thread_sleep(); /* wait till someone grabs the packet and sends another packet that's different */
+	}
 }
 
 /*
@@ -147,12 +177,15 @@ inline char * get_packet_ptr(char * shm) {
 inline shm_packet_t * create_packet(shm_t * our_device, char * to, uint8_t to_dev_type, void * message, uint8_t message_size) {
 	shm_packet_t * packet = malloc(sizeof(shm_packet_t));
 
+	memset(packet->to, 0, SHM_MAX_ID_SIZE);
 	strcpy(packet->to, to); /* IP/ID/Shared Memory Key of the server */
-	strcpy(packet->from, our_device->shm_key);
+	memset(packet->from, 0, SHM_MAX_ID_SIZE);
+	strcpy(packet->from, our_device->unique_id);
 
 	/* Actually copy the data */
-	memcpy(packet->dat, message, message_size >= SHM_MAX_PACKET_DAT_SIZE ? SHM_MAX_PACKET_DAT_SIZE : message_size);
-	packet->dat_size = message_size;
+	packet->dat_size = message_size >= SHM_MAX_PACKET_DAT_SIZE ? SHM_MAX_PACKET_DAT_SIZE : message_size;
+	memset(packet->dat, 0, SHM_MAX_PACKET_DAT_SIZE);
+	memcpy(packet->dat, message, packet->dat_size);
 
 	packet->from_type = our_device->dev_type; /* Our device type */
 	packet->to_type = to_dev_type; /* What type is the device we're sending this packet to? Server? Client? */
@@ -162,7 +195,8 @@ inline shm_packet_t * create_packet(shm_t * our_device, char * to, uint8_t to_de
 
 /* API Wrapper functions: */
 shm_t * shman_create_server(char * server_id);
-shm_t * shman_create_client(char * server_id);
+shm_t * shman_create_client(char * server_id, char * client_id);
 int shman_server_listen(shm_t * server, shman_packet_cback callback);
+shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet);
 
 #endif /* HELIOS_SRC_USR_INCLUDE_SHM_H_ */
