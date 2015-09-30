@@ -10,7 +10,8 @@
 
 char * server_callback(shm_packet_t * packet) {
 	char * ret = malloc(SHM_MAX_PACKET_DAT_SIZE);
-	strcpy(ret, "hello back!");
+	strcpy(ret, packet->dat);
+	ret[0]++;
 	return ret;
 }
 

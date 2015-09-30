@@ -156,7 +156,7 @@ helios-src/bin/%.o: ../helios-src/bin/%.c
 helios-src/bin/cli.o: ../helios-src/bin/cli.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shm_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/cli.d" -o "$@" "$<"
+	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/pthread.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shm_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/cli.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 

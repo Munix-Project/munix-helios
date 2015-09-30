@@ -122,8 +122,11 @@ static void shm_ack(void * response, char response_size) {
 		if(!response_size)
 			response_size++; /* this means we might have found an error */
 		memcpy(shm_cmd + 2, response, response_size); /* the third byte contains the start of the response data */
+		shm_cmd[0] = 0; /* the first byte must be used to signal the acknowledgement of the request */
+	} else {
+		/* Clear out shm command channel */
+		memset(shm_cmd, 0, SHMAN_SIZE);
 	}
-	shm_cmd[0] = 0; /* the first byte must be used to signal the acknowledgement of the request */
 }
 
 /*
@@ -167,9 +170,10 @@ int main(int argc, char ** argv) {
 		/* Listen for requests and handle them */
 		switch(shm_cmd[0]) {
 			case SHM_CMD_NEW_SERVER: {
-				/* get_packet_ptr is expected to return the start of the string
+				/*
+				 * get_packet_ptr is expected to return the start of the string
 				 * that must be passed in while communicating with this process.
-				 * The same applies to the next case on this switch */
+				 */
 				shm_t * new_server = shm_connect(SHM_DEV_SERVER, get_packet_ptr(shm_cmd), get_packet_ptr(shm_cmd));
 				if(SHM_IS_ERR(new_server)) {
 					/* The server creation failed. Send error to whoever requested the server */
@@ -214,5 +218,5 @@ int main(int argc, char ** argv) {
 	}
 
 	shm_network_stopall();
-	return 0; /* The shared memory should never return */
+	return 0; /* The shared memory manager should never return */
 }

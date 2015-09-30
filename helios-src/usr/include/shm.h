@@ -13,14 +13,11 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
-#include <spinlock.h>
+#include <sys/time.h>
 
 /* Shared Memory Manager channel size */
 #define SHMAN_SIZE 128
 extern size_t shman_size;
-
-/* Time in microseconds for the thread to wait for the polling */
-#define POLL_THREAD_SLEEP_USEC 0
 
 /* Shared memory key used to communicate with the SHM manager */
 #define SHM_RESKEY_SHMAN_CMD "shman_cmd" /* This key is reserved and shall not be used by another process */
@@ -33,9 +30,25 @@ extern size_t shman_size;
 
 #define SHM_IS_ERR(no) no < SHM_NOERR
 
-#define SHM_PACKET_IS_IT_FOR_US(packet, dev) !strcmp(packet->to, dev->unique_id) && packet->from_type != dev->dev_type
+#define SHM_PACKET_IS_IT_FOR_US(packet, dev) !strcmp(packet->to, dev->unique_id) && \
+											  packet->from_type != dev->dev_type
 
-extern int lock;
+/* Time in microseconds for the thread to wait for the polling */
+#define POLL_THREAD_SLEEP_USEC 10000
+
+/* Timeout in milliseconds used while sending packets */
+#define SHM_TIMEOUT_MSEC 2500
+
+#define TIMEOUT_START() struct timeval start, elapsed; \
+						gettimeofday(&start, NULL);
+
+#define TIMEOUT_CHECK() gettimeofday(&elapsed, NULL); \
+						if(timediff(start, elapsed) >= SHM_TIMEOUT_MSEC) break; /* Timeout.... */
+
+/* Returns the time difference in milliseconds */
+inline int timediff(struct timeval t0, struct timeval t1) {
+	return (t1.tv_sec - t0.tv_sec) * 1000 + (t1.tv_usec - t0.tv_usec) / 1000;
+}
 
 /*
  * Describes the type of device used by the Shared Memory Manager
@@ -145,9 +158,11 @@ inline char * get_packet_ptr(char * shm) {
  * It does not check the destination ack.
  */
 static inline void shm_wait_for_ack(char * shm) {
-	spin_lock(&lock);
-	while(shm[0]) thread_sleep();
-	spin_unlock(&lock);
+	TIMEOUT_START();
+	while(shm[0]) {
+		thread_sleep();
+		TIMEOUT_CHECK();
+	}
 }
 
 /*
@@ -159,16 +174,24 @@ static inline void shm_wait_for_ack(char * shm) {
  * It's use is mostly for the server side.
 */
 static inline void shm_wait_for_ack_withdev(char * shm, shm_t * dev) {
-	spin_lock(&lock);
+	TIMEOUT_START();
 	while(1) {
-		while(shm[0]) thread_sleep();
+		while(shm[0]) {
+			thread_sleep();
+			TIMEOUT_CHECK();
+		}
+
 		/* We got an ack, let's see if its for us... */
 		shm_packet_t * packet = (shm_packet_t*)get_packet_ptr(shm);
-		if(SHM_PACKET_IS_IT_FOR_US(packet, dev)) break; /*it's for us*/
+		if(SHM_PACKET_IS_IT_FOR_US(packet, dev))
+			break; /*it's for us*/
+
 		/* Not our packet, wait till someone sends ack back to the shared memory manager to indicate they received the packet */
-		while(!shm[0]) thread_sleep(); /* wait till someone grabs the packet and sends another packet that's different */
+		while(!shm[0]) {
+			thread_sleep(); /* wait till someone grabs the packet and sends another packet that's different */
+			TIMEOUT_CHECK();
+		}
 	}
-	spin_unlock(&lock);
 }
 
 /*
@@ -204,4 +227,5 @@ shm_t * shman_create_client(char * server_id, char * client_id);
 int shman_server_listen(shm_t * server, shman_packet_cback callback);
 shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet);
 shm_packet_t * client_send(shm_t * client, void * message, uint8_t message_size_bytes);
+
 #endif /* HELIOS_SRC_USR_INCLUDE_SHM_H_ */

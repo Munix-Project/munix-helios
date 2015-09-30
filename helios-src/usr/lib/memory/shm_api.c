@@ -13,13 +13,27 @@
 /* Size of channel used between any process and the shared memory manager */
 size_t shman_size = 0;
 
-int lock = 0;
-
 static char * shm_manager;
 static uint8_t is_shman_init = 0;
 
+/*
+ * get_cmd_channel - Returns the pointer to the channel used for sending commands to the Shared Memory Manager
+ */
 static void * get_cmd_channel() {
 	return (void*)syscall_shm_obtain(SHM_RESKEY_SHMAN_CMD, &shman_size);
+}
+
+/*
+ * avoid_collision - Prevents packets from being sent if the channel is already being used.
+ * [char * shm] - Channel from which the packets will "flow through"
+ */
+static void avoid_collision(char * shm) {
+	TIMEOUT_START();
+
+	while(shm[0]) {
+		thread_sleep();
+		TIMEOUT_CHECK();
+	}
 }
 
 /*
@@ -31,6 +45,10 @@ char * shman_init() {
 	return shm_manager;
 }
 
+/*
+ * shman_stop - Disconnects a device from a network
+ * [shm_t * shm_dev] - Shared Memory Device to disconnect
+ */
 void shman_stop(shm_t * shm_dev) {
 	if(is_shman_init) {
 		shman_send(shm_dev->dev_type + 3, shm_dev, sizeof(shm_t), NULL);
@@ -55,6 +73,10 @@ void shman_stop(shm_t * shm_dev) {
 void * shman_send(char cmd, void * packet, uint8_t packet_size, shm_t * dev_for_ack) {
 	if(!is_shman_init)
 		shman_init();
+
+	/* Wait for the command channel to free up to prevent collisions */
+	avoid_collision(shm_manager);
+
 	if(packet) { /* Send packet to the shared memory manager */
 		/* Copy whatever the response variable points to to the shared memory with offset of 1 byte */
 		shm_manager[1] = packet_size; /* second byte contains the size of the response */
@@ -119,6 +141,9 @@ shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
 	if(strcmp(dev->shm_key, packet->to))
 		return SHM_ERR_NOAUTH;
 
+	/* Prevent collisions on the network */
+	avoid_collision(dev->shm);
+
 	/* Must use a timeout on this. Sending packets needs a timeout, listening might not need one. */
 	shm_packet_t * server_response_ptr =
 			(shm_packet_t *) shman_send(SHM_CMD_SEND, packet, sizeof(shm_packet_t), dev);
@@ -127,20 +152,23 @@ shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
 	shm_packet_t * server_response = malloc(sizeof(shm_packet_t));
 	memcpy(server_response, server_response_ptr, sizeof(shm_packet_t));
 
-	memset(dev->shm, 0, SHMAN_SIZE); /* Clear out shared memory channel in its entirety */
+	/* Clear out shared memory channel in its entirety */
+	memset(dev->shm, 0, SHMAN_SIZE);
 
 	/* Return data back to the client */
 	return server_response;
 }
 
+/*
+ * server_wait_for_packet - Used for listening on the server side
+ * [shm_t * dev] - Server device
+ */
 static void server_wait_for_packet(shm_t * dev) {
-	spin_lock(&lock);
 	while(!dev->shm[0])
 		thread_sleep();
-	spin_unlock(&lock);
 }
 /*
- * shman_server_listen - Tells the Shared Memory Manager we're going to start listening for packages. Works for the server only.
+ * shman_server_listen - Listens for packets and redirects them to the server callback. Works for servers only.
  * [shm_t * server] - Server pointer
  * [shman_packet_cback callback] - Function callback that will be called every time a packet is received
  */
