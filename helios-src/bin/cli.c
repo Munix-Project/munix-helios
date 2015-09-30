@@ -9,17 +9,13 @@
 #include <stdio.h>
 
 int main(int argc, char ** argv) {
-	char * msg = malloc(16);
-	strcpy(msg,"hi!");
-	char * server_name = malloc(16);
-	strcpy(server_name,"serv_1");
-	char * client_name = malloc(16);
-	strcpy(client_name,"client_1");
+	char msg[16] = "hi!";
+	shm_t  * client = shman_create_client("serv_1", "client_1");
+	shm_packet_t * server_packet = client_send(client, msg, strlen(msg));
 
-	shm_t * client = shman_create_client(server_name, client_name);
-	shm_packet_t * p = create_packet(client, server_name, SHM_DEV_SERVER, msg, strlen(msg));
-	shman_send_to_network(client, p);
+	printf("Server's Data: %s\n", server_packet->dat);
+	fflush(stdout);
+
 	shman_stop(client);
-
 	return 0;
 }

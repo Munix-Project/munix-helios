@@ -11,7 +11,6 @@
 #include <hashmap.h>
 #include <stdio.h>
 #include <syscall.h>
-#include <spinlock.h>
 #include <pthread_os.h>
 
 /* Size of channel used between any process and the shared memory manager */
@@ -45,7 +44,7 @@ static void add_server_to_network(shm_t * server_dev) {
 	servers_online++;
 }
 
-shm_t * get_server_from_network(char * server_id) {
+static shm_t * get_server_from_network(char * server_id) {
 	list_t * shm_node_list = (list_t*)hashmap_get(shm_network, server_id);
 	shm_t * server = (shm_t*)shm_node_list->head->value;
 	return server;
@@ -90,7 +89,7 @@ static shm_t * shm_connect(uint8_t device_type, char * id, char * unique_id) {
 
 	strcpy(shm_new_dev->shm_key, id); /* Set its ID so we know what server we're called/what server we're connected to */
 	strcpy(shm_new_dev->unique_id, unique_id);
-	shm_new_dev->shm = (uint8_t*)syscall_shm_obtain(id, &shman_size);
+	shm_new_dev->shm = (char*)syscall_shm_obtain(id, &shman_size);
 	memset(shm_new_dev->shm, 0, shman_size);
 
 	/* Add this device into a hashmap with a list (which indicates the nodes connected to the hash) as value and ID as key */
@@ -128,122 +127,37 @@ static void shm_ack(void * response, char response_size) {
 }
 
 /*
- * send_confirmation - Send acknowledgement WITH data to the process who requested data/executed a command
- * [void * dat_ptr] - Pointer to the data to be sent
- * [char confirmation_size] - Size of the structure of the pointer
+ * shm_send_to_server - Puts packet directly into the server's shared memory. Beware that clients also get this packet.
+ * The difference is that they know that the packet is not for them. So don't be putting the client's name on this packet.
+ * [shm_packet_t * packet] - The packet to be sent, obviously
  */
-void send_confirmation(void * dat_ptr, char confirmation_size) {
-	shm_ack(dat_ptr, confirmation_size);
-	free(dat_ptr);
-}
-
 static void shm_send_to_server(shm_packet_t * packet) {
 	shm_t * server = get_server_from_network(packet->to);
 	server->shm[1] = sizeof(shm_packet_t); /* tells the server the size of the packet */
 	memcpy(server->shm + 2, packet, sizeof(shm_packet_t)); /* copy packet to server */
 	server->shm[0] = 1; /* indicates the server there's a new package */
-	shm_ack(NULL, 0);
+	shm_ack(NULL, 0); /* Indicates the command is finished. The rest of the operation will be carried out by the actual server */
+}
+
+/*
+ * send_confirmation - Send acknowledgement WITH data to the process who requested data/executed a command
+ * [void * dat_ptr] - Pointer to the data to be sent
+ * [char confirmation_size] - Size of the structure of the pointer
+ */
+static void send_confirmation(void * dat_ptr, char confirmation_size) {
+	shm_ack(dat_ptr, confirmation_size);
+	free(dat_ptr);
 }
 
 /*
  * send_err - Sends error code to the process who made the request
  * [char errcode] - self explanatory
  */
-void send_err(char errcode) {
+static void send_err(char errcode) {
 	char * errcode_buff = malloc(1);
 	errcode_buff[0] = errcode;
 	shm_ack(errcode_buff, 0);
 	free(errcode_buff);
-}
-
-/*
- * shm_poll - Checks if the there's any request being made to the server. It's also non blocking
- * [shm_t * dev] - shared memory node device
- */
-static int shm_poll(char * shm) {
-	return shm[0];
-}
-
-/*
- * shm_listen - Listens for requests by the clients. It's also blocking
- * [shm_t * dev] - shared memory node device
- */
-int lock = 0;
-char * shm_old = NULL;
-static void server_wait_for_packet(shm_t * dev) {
-	if(!shm_old) shm_old = dev->shm;
-	int poll_ret = 0;
-	spin_lock(&lock);
-	while(!poll_ret) {
-		thread_sleep();
-		/* This is a fix for a really really really really annoying bug where the address of dev->shm magically changes
-		 * by doing 'memcpy' on another pointer on the file shm_api.c line 60. I really don't know how to fix this and it pisses me off.
-		 * If you have any idea about this please tell me :) */
-		if(dev->shm != shm_old) dev->shm = shm_old; /* wut?... ffs... */
-		else shm_old = dev->shm;
-
-		poll_ret = shm_poll(dev->shm);
-	}
-	spin_unlock(&lock);
-}
-
-void * shm_server_listen(void * dev_ptr) {
-	shm_t * dev = (shm_t*) dev_ptr;
-	if(dev->dev_type != SHM_DEV_SERVER) {
-		pthread_exit(1);
-		return NULL; /* Don't even try to do this if you're a client */
-	}
-
-	/* And now we wait */
-	while(1) {
-		server_wait_for_packet(dev);
-
-		/* Someone broadcasted an ack! Is it for us?? */
-
-		shm_packet_t * packet = (shm_packet_t*)get_packet_ptr(dev->shm);
-
-		/* Let's see... */
-		if(SHM_PACKET_IS_IT_FOR_US(packet, dev)) { /* Prevent the server from fetching packets from itself */
-			/* It's for us! But is the packet from someone we should trust?.... */
-			if(packet->to_type == SHM_DEV_CLIENT) {
-				/* The packet says this is supposed to be received by a client.... That's impossible.
-				 * Just kill this packet already so the client knows he screwed up and it isn't going to mess up
-				 * other servers. */
-				/* Build packet and send it back */
-				send_confirmation(
-						create_packet(dev, dev->shm_key, SHM_DEV_CLIENT, SHM_PACK_BADPACKET, 1),
-						sizeof(shm_packet_t)
-				);
-				continue;
-			}
-
-			char client_name[SHM_MAX_ID_SIZE];
-			strcpy(client_name, packet->to);
-
-			/* Looking good. */
-
-			/* Send packet for the server's callback */
-			send_confirmation(packet, sizeof(shm_packet_t));
-
-			/* And now listen for the callback response */
-			server_wait_for_packet(dev);
-
-			printf("callback responded!"); fflush(stdout);
-
-			/* Finally, send callback's result back directly to the client */
-			shm_packet_t * cback_packet = (shm_packet_t*)get_packet_ptr(dev->shm);
-			strcpy(cback_packet->to, client_name);
-			send_confirmation(cback_packet, sizeof(shm_packet_t));
-
-			/* Good, all done! */
-		}
-
-		/* else it's not for us... We just hope someone will receive it and send ack to the client,
-		 * otherwise we might just stay here forever. We gotta find a fix for this. (Unless the client uses timeouts...) */
-	}
-
-	pthread_exit(0);
-	return 0;
 }
 
 int main(int argc, char ** argv) {
@@ -289,12 +203,6 @@ int main(int argc, char ** argv) {
 			case SHM_CMD_SEND: {
 				/* Send packet directly from client to server: */
 				shm_send_to_server((shm_packet_t*)get_packet_ptr(shm_cmd));
-				break;
-			}
-			case SHM_CMD_SERVER_LISTEN: {
-				pthread_t listen_thread;
-				pthread_create(&listen_thread, NULL, shm_server_listen, get_packet_ptr(shm_cmd));
-				shm_ack(NULL, 0); /* broadcast ack but indicate no destination nor error code */
 				break;
 			}
 			case 0: /* No requests being done */

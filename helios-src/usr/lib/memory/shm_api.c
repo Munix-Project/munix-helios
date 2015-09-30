@@ -13,6 +13,8 @@
 /* Size of channel used between any process and the shared memory manager */
 size_t shman_size = 0;
 
+int lock = 0;
+
 static char * shm_manager;
 static uint8_t is_shman_init = 0;
 
@@ -61,13 +63,18 @@ void * shman_send(char cmd, void * packet, uint8_t packet_size, shm_t * dev_for_
 
 	shm_manager[0] = cmd;
 	if(dev_for_ack)
-		shm_wait_for_ack_withdev(shm_manager, dev_for_ack); /* fetch this ack only if its for us */
+		shm_wait_for_ack_withdev(dev_for_ack->shm, dev_for_ack); /* fetch this ack only if its for us */
 	else
 		shm_wait_for_ack(shm_manager); /* we're fetching an ack that was broadcasted for everyone */
-	if(!shm_manager[1] && shm_manager[2])
+
+	if(!shm_manager[1] && shm_manager[2]) {
 		return shm_manager[2]; /* Oops, this result is invalid. Return the error number */
-	else
-		return get_packet_ptr(shm_manager); /* grab shm manager's acknowledge result, if there is one */
+	} else {
+		if(dev_for_ack)
+			return get_packet_ptr(dev_for_ack->shm);
+		else
+			return get_packet_ptr(shm_manager); /* grab shm manager's acknowledge result, if there is one */
+	}
 }
 
 /* Function wrappers: */
@@ -79,6 +86,7 @@ shm_t * shman_create_server(char * server_id) {
 	} else {
 		shm_t * new_server = malloc(sizeof(shm_t));
 		memcpy(new_server, server_from_shm, sizeof(shm_t));
+		new_server->shm = (char*)syscall_shm_obtain(server_id, &shman_size);
 		return new_server;
 	}
 }
@@ -95,6 +103,7 @@ shm_t * shman_create_client(char * server_id, char * client_id) {
 	} else {
 		shm_t * new_client = malloc(sizeof(shm_t));
 		memcpy(new_client, client_from_shm, sizeof(shm_t));
+		new_client->shm = (char*)syscall_shm_obtain(server_id, &shman_size);
 		return new_client;
 	}
 }
@@ -111,44 +120,69 @@ shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
 		return SHM_ERR_NOAUTH;
 
 	/* Must use a timeout on this. Sending packets needs a timeout, listening might not need one. */
-	shm_packet_t * server_response =
+	shm_packet_t * server_response_ptr =
 			(shm_packet_t *) shman_send(SHM_CMD_SEND, packet, sizeof(shm_packet_t), dev);
+
+	/* Copy Shared Memory data into our own memory */
+	shm_packet_t * server_response = malloc(sizeof(shm_packet_t));
+	memcpy(server_response, server_response_ptr, sizeof(shm_packet_t));
+
+	memset(dev->shm, 0, SHMAN_SIZE); /* Clear out shared memory channel in its entirety */
+
+	/* Return data back to the client */
 	return server_response;
 }
 
+static void server_wait_for_packet(shm_t * dev) {
+	spin_lock(&lock);
+	while(!dev->shm[0])
+		thread_sleep();
+	spin_unlock(&lock);
+}
 /*
  * shman_server_listen - Tells the Shared Memory Manager we're going to start listening for packages. Works for the server only.
  * [shm_t * server] - Server pointer
  * [shman_packet_cback callback] - Function callback that will be called every time a packet is received
  */
 int shman_server_listen(shm_t * server, shman_packet_cback callback) {
-	if(!is_shman_init) return SHM_ERR_NOINIT;
-	if(server->dev_type == SHM_DEV_CLIENT) return SHM_ERR_WRONGDEV;
-
-	/* Tell SHMAN we're going to start listening for requests */
-	shm_packet_t * shman_serv_response =
-			(shm_packet_t *)shman_send(SHM_CMD_SERVER_LISTEN, server, sizeof(shm_t), server); /* We don't want to receive anything. */
-
-	/* We're now listening. We should wait for acks that are for us, instead of
-	 * reacting to any ack that is broadcast from SHMAN */
+	if(server->dev_type != SHM_DEV_SERVER)
+		return SHM_ERR_WRONGDEV; /* Don't even try to do this if you're a client */
 
 	while(1) {
-		char * cback_ret_dat;
-		if((cback_ret_dat = callback(shman_serv_response))[0] == SHM_RET_SERV_WANTSQUIT)
-			break; /* callback wants server to stop listening */
+		/* Listen for packets... */
+		server_wait_for_packet(server);
 
-		/* send confirmation back to the shared memory manager with the callback's result */
-		shman_send(SHM_CMD_SEND,
-				create_packet(server, server->unique_id, SHM_DEV_SERVER, cback_ret_dat, SHM_MAX_PACKET_DAT_SIZE),
-				sizeof(shm_packet_t),
-				NULL
-		);
+		/* We got a packet! */
 
-		free(cback_ret_dat);
+		/* Grab client's packet from the shared memory: */
+		shm_packet_t * client_request = malloc(sizeof(shm_packet_t));
+		memcpy(client_request, get_packet_ptr(server->shm), sizeof(shm_packet_t));
 
-		/* we're already listening. just wait for more callback requests for us */
-		shm_wait_for_ack_withdev(shm_manager, server);
+		/* Call server's callback to process the client's request */
+		char* client_response_dat = callback(client_request);
+		shm_packet_t * clients_response =
+				create_packet(server, client_request->from, SHM_DEV_CLIENT, client_response_dat, SHM_MAX_PACKET_DAT_SIZE);
+
+		/* Send callback's return data back to the client */
+		server->shm[1] = sizeof(shm_packet_t);
+		memcpy(server->shm + 2, clients_response, sizeof(shm_packet_t));
+		server->shm[0] = 0;
 	}
 
 	return 0;
+}
+
+/*
+ * client_send - This function is to be used only by the client where he sends basic messages to the server
+ * [shm_t * client] - Client's shared memory device
+ * [void * message] - Pointer to the message being sent
+ * [uint8_t message_size_bytes] - Size in, you guessed it, bytes, of the message being sent
+ */
+shm_packet_t * client_send(shm_t * client, void * message, uint8_t message_size_bytes) {
+	if(client->dev_type != SHM_DEV_CLIENT)
+		return SHM_ERR_WRONGDEV;
+
+	shm_packet_t * clients_packet = create_packet(client, client->shm_key, SHM_DEV_SERVER, message, message_size_bytes);
+	shm_packet_t * servers_packet = shman_send_to_network(client, clients_packet);
+	return servers_packet;
 }
