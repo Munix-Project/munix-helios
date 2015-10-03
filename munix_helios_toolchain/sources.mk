@@ -21,5 +21,6 @@ helios-src/usr/lib \
 helios-src/usr/lib/memory \
 helios-src/usr/lib/security/crypt \
 helios-src/usr/lib/security \
+helios-src/usr/lib/shmon \
 helios-src/usr/lib/string \
 

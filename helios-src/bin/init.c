@@ -19,7 +19,7 @@
 #include <syscall.h>
 #include <sys/wait.h>
 
-#define OS_HOSTNAME "helios"
+#define OS_DEFAULT_HOSTNAME "helios"
 
 void set_console(void) {
 	int _stdin  = open("/dev/null", O_RDONLY);
@@ -34,9 +34,9 @@ void set_console(void) {
 
 void set_hostname(void){
 	FILE* f_hostname = fopen("/etc/hostname","r");
-	if(!f_hostname)
-		syscall_sethostname(OS_HOSTNAME);
-	else {
+	if(!f_hostname) {
+		syscall_sethostname(OS_DEFAULT_HOSTNAME);
+	} else {
 		char buff[256];
 		fgets(buff, 255, f_hostname);
 		if(buff[strlen(buff)-1] == '\n')
@@ -80,6 +80,7 @@ int main(int argc, char * argv[]) {
 	run_essential();
 
 	/* All is configured for startup, launch the terminal / GUI */
+
 #if 0 /* TODO: Remove this macro after testing with GUI is done */
 	run((char *[]){"/usr/bin/start", NULL}, 1);
 #else

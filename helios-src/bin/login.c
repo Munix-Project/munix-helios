@@ -22,15 +22,13 @@
 #include <sys/wait.h>
 #include <sys/utsname.h>
 #include <security/helios_auth.h>
-#include <spinlock.h>
 #include <shmon.h>
 
 extern int fileno(FILE *); /* eclipse can't find this declaration on stdio.h, so we put this here */
 
 #define LINE_LEN 1024
 
-extern char shm_key[30];
-char * shm;
+static shm_t * shmon_api_client;
 
 static uint8_t already_saw_motd = 0;
 char * passed_username = NULL;
@@ -54,8 +52,14 @@ void sig_tstp(int sig) {
 	multishell_cont = 0;
 	if (child) kill(child, sig);
 
-	while(!multishell_cont){
-		if(listen_to_shm(shm_key, shm)) break;
+	shm_packet_t * pack;
+
+	while(!multishell_cont) {
+		if((pack = client_has_packet(shmon_api_client))) {
+			/* TODO: Do !strcmp on pack->dat and 'wake' */
+			free(pack);
+			break;
+		}
 		usleep(100); /*wait for SIGCONT and reap flag*/
 	}
 }
@@ -97,7 +101,9 @@ int main(int argc, char ** argv) {
 	signal(SIGCONT,  sig_cont);
 	signal(SIGKILL,  sig_kill);
 
-	shm = init_shm();
+	char shm_client_id[SHM_MAX_ID_SIZE];
+	sprintf(shm_client_id, SHMON_CLIENT_LOGIN_FORMAT, getpid());
+	shmon_api_client = init_shmon_api(shm_client_id);
 
 	if(argc > 1) {
 		int c;
@@ -170,7 +176,7 @@ int main(int argc, char ** argv) {
 		if(already_saw_motd && (switch_pid = shmon_get_user(username)) != -1 && switch_pid != getpid()) {
 			/* If he is, switch immediately to the pid where he lives in and then reap this login process */
 			/* Use shared memory instead of signals due to permission problems */
-			send_kill_msg_login(switch_pid);
+			send_wakeup_loginproc(switch_pid);
 
 			/* kill this shell and login processes*/
 			sig_pass(SIGKILL);
@@ -221,6 +227,5 @@ int main(int argc, char ** argv) {
 		free(username);
 		free(password);
 	}
-	syscall_shm_release(shm_key);
 	return 0;
 }

@@ -18,6 +18,7 @@ size_t shman_size = SHMAN_SIZE;
 static char * shm_cmd; /* Shared memory used to execute commands and receive data which the commands might need */
 
 static hashmap_t * shm_network; /* contains the server's ids as keys and a list with their clients */
+static hashmap_t * shm_client_list; /* contains a list of clients without extra information. This is to be used for fast and simple searches */
 static int servers_online = 0;
 
 /*
@@ -25,6 +26,7 @@ static int servers_online = 0;
  */
 static void shm_network_init() {
 	shm_network = hashmap_create(1);
+	shm_client_list = hashmap_create(1);
 	shm_cmd = (char*) syscall_shm_obtain(SHM_RESKEY_SHMAN_CMD, &shman_size);
 }
 
@@ -44,10 +46,19 @@ static void add_server_to_network(shm_t * server_dev) {
 	servers_online++;
 }
 
+static void add_client_to_list(shm_t * client_dev) {
+	if(!hashmap_contains(shm_client_list, client_dev->unique_id)) return;
+	hashmap_set(shm_client_list, client_dev->unique_id, client_dev);
+}
+
 static shm_t * get_server_from_network(char * server_id) {
 	list_t * shm_node_list = (list_t*)hashmap_get(shm_network, server_id);
 	shm_t * server = (shm_t*)shm_node_list->head->value;
 	return server;
+}
+
+static shm_t * get_client_from_list(char * client_id) {
+	return hashmap_get(shm_client_list, client_id);
 }
 
 /*
@@ -95,6 +106,8 @@ static shm_t * shm_connect(uint8_t device_type, char * id, char * unique_id) {
 	/* Add this device into a hashmap with a list (which indicates the nodes connected to the hash) as value and ID as key */
 	if(device_type == SHM_DEV_SERVER)
 		add_server_to_network(shm_new_dev);
+	else
+		add_client_to_list(shm_new_dev);
 
 	return shm_new_dev;
 }
@@ -106,6 +119,7 @@ static shm_t * shm_connect(uint8_t device_type, char * id, char * unique_id) {
 static void shm_disconnect(shm_t * dev) {
 	if(dev->dev_type == SHM_DEV_SERVER) {
 		hashmap_remove(shm_network, dev->shm_key);
+		hashmap_remove(shm_client_list, dev->unique_id);
 		servers_online--;
 	}
 }
@@ -134,11 +148,18 @@ static void shm_ack(void * response, char response_size) {
  * The difference is that they know that the packet is not for them. So don't be putting the client's name on this packet.
  * [shm_packet_t * packet] - The packet to be sent, obviously
  */
-static void shm_send_to_server(shm_packet_t * packet) {
-	shm_t * server = get_server_from_network(packet->to);
-	server->shm[1] = sizeof(shm_packet_t); /* tells the server the size of the packet */
-	memcpy(server->shm + 2, packet, sizeof(shm_packet_t)); /* copy packet to server */
-	server->shm[0] = 1; /* indicates the server there's a new package */
+static void shm_send_to_device(shm_packet_t * packet) {
+	shm_t * dev = NULL;
+	if(packet->to_type == SHM_DEV_SERVER)
+		dev = get_server_from_network(packet->to);
+	else {
+		dev = get_client_from_list(packet->to);
+		printf("Sending to client: %s\n\n", dev->unique_id);
+		fflush(stdout);
+	}
+	dev->shm[1] = sizeof(shm_packet_t); /* tells the server the size of the packet */
+	memcpy(dev->shm + 2, packet, sizeof(shm_packet_t)); /* copy packet to server */
+	dev->shm[0] = 1; /* indicates the server there's a new package */
 	shm_ack(NULL, 0); /* Indicates the command is finished. The rest of the operation will be carried out by the actual server */
 }
 
@@ -204,11 +225,10 @@ int main(int argc, char ** argv) {
 				shm_disconnect((shm_t*)get_packet_ptr(shm_cmd));
 				shm_ack(NULL, 0);
 				break;
-			case SHM_CMD_SEND: {
-				/* Send packet directly from client to server: */
-				shm_send_to_server((shm_packet_t*)get_packet_ptr(shm_cmd));
+			case SHM_CMD_SEND:
+				/* Send packet directly from client/server to device (server or client): */
+				shm_send_to_device((shm_packet_t*)get_packet_ptr(shm_cmd));
 				break;
-			}
 			case 0: /* No requests being done */
 			default:
 				/* Clear out cmd flag */

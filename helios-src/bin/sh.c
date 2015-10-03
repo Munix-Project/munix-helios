@@ -43,10 +43,9 @@
 #define OS_EXPT_TERM "xterm"
 /* =============== Operating System data (END) ========= */
 
-/* =============== Shared memory data =============== */
-char shm_key[30];
-char * shm;
-/* =============== Shared memory data (END) ========= */
+/* =============== Shared Memory data ========= */
+static shm_t * shmon_api_client;
+/* ===============Shared Memory data (END) ========= */
 
 /* =============== Shell data ===================== */
 /* These extern function declarations are here because somehow eclipse can't find them on their headers.
@@ -62,9 +61,9 @@ extern char * strtok_r(char *, const char *, char **);
 typedef uint32_t(*shell_command_t) (int argc, char ** argv);
 
 /* We have a static array that fits a certain number of them. */
-#define SHELL_COMMANDS 512
-char * shell_commands[SHELL_COMMANDS];          /* Command names */
-shell_command_t shell_pointers[SHELL_COMMANDS]; /* Command functions */
+#define MAX_SHELL_COMMANDS 512
+char * shell_commands[MAX_SHELL_COMMANDS];          /* Command names */
+shell_command_t shell_pointers[MAX_SHELL_COMMANDS]; /* Command functions */
 
 /* This is the number of actual commands installed (0 on startup obviously) */
 uint32_t sh_cmd_count = 0;
@@ -104,9 +103,14 @@ void sig_pass(int sig) {
 void sig_tstp(int sig) {
 	sigcont = 0;
 	if (child) kill(child, sig);
+
+	shm_packet_t * pack;
+
 	while(!sigcont){
-		if(parent_pid >= 0 && listen_to_shm(shm_key, shm)) {
+		if(parent_pid >= 0 && (pack = client_has_packet(shmon_api_client))) {
 			sigcont = 1;
+			/* TODO: Do !strcmp on pack->dat and 'wake' */
+			free(pack);
 			break;
 		}
 		usleep(100);
@@ -165,8 +169,8 @@ char * shell_history_prev(int item) {
 }
 
 void shell_install_command(char * name, shell_command_t func) {
-	if (sh_cmd_count == SHELL_COMMANDS) {
-		fprintf(stderr, "Ran out of space for static shell commands. The maximum number of commands is %d\n", SHELL_COMMANDS);
+	if (sh_cmd_count == MAX_SHELL_COMMANDS) {
+		fprintf(stderr, "Ran out of space for static shell commands. The maximum number of commands is %d\n", MAX_SHELL_COMMANDS);
 		return;
 	}
 	shell_commands[sh_cmd_count] = name;
@@ -195,7 +199,7 @@ void set_buffered() {
 	tcsetattr(fileno(stdin), TCSAFLUSH, &term_old);
 }
 
-void install_commands();
+void install_builtin_commands();
 
 /* Maximum command length */
 #define LINE_LEN 4096
@@ -559,21 +563,21 @@ int variable_char(uint8_t c) {
 }
 
 void run_cmd(char ** args) {
-	int i = execvp(*args, args);
+	int ret = execvp(*args, args);
 
 	shell_command_t func = shell_find(*args);
 	if (func) {
 		int argc = 0;
 		while (args[argc])
 			argc++;
-		i = func(argc, args);
+		ret = func(argc, args);
 	} else {
-		if (i) {
+		if (ret) {
 			fprintf(stderr, "%s: Command not found\n", *args);
-			i = 127;
+			ret = 127;
 		}
 	}
-	exit(i);
+	exit(ret);
 }
 
 int shell_exec(char * buffer, int buffer_size) {
@@ -777,7 +781,7 @@ _done:
 
 	unsigned int child_pid;
 
-	int nowait = (!strcmp(argv[tokenid-1],"&"));
+	int nowait = (!strcmp(argv[tokenid-1], "&"));
 	if (nowait)
 		argv[tokenid-1] = NULL;
 
@@ -870,7 +874,7 @@ static int comp_shell_commands(const void *p1, const void *p2) {
 }
 
 void sort_commands() {
-	struct command commands[SHELL_COMMANDS];
+	struct command commands[MAX_SHELL_COMMANDS];
 	for (int i = 0; i < sh_cmd_count; ++i) {
 		commands[i].string = shell_commands[i];
 		commands[i].func   = shell_pointers[i];
@@ -914,16 +918,17 @@ void init_shell() {
 	getuser();
 	gethost();
 
-	install_commands();
+	install_builtin_commands();
 	add_bin_progs("/bin");
 	sort_commands();
 
-	if(parent_pid >= 0)
-		shm = init_shm();
+	char shm_client_id[SHM_MAX_ID_SIZE];
+	sprintf(shm_client_id, SHMON_CLIENT_SHELL_FORMAT, (int)parent_pid);
+	shmon_api_client = init_shmon_api(shm_client_id);
 }
 
 int main(int argc, char ** argv) {
-	/*XXX main comment for CTRL+F convenience*/
+	/* XXX main comment for CTRL + F convenience */
 	if (argc > 1) {
 		int c;
 		while ((c = getopt(argc, argv, "p:c:v?")) != -1) {
@@ -1087,6 +1092,12 @@ uint32_t shell_cmd_togtime(int argc, char * argv[]) {
 }
 
 uint32_t shell_cmd_su(int argc, char * argv[]) {
+	/* TODO: The processes login.c and sh.c are having trouble communicating with each other.
+	 * The problem is that the processes won't wake up from sleeping state. This may be
+	 * because we can't send client-client data, only client-server */
+	fprintf(stderr, "su: this command is unfinished\n");
+	return 0;
+
 	if(argc < 2) {
 		fprintf(stderr, "su: usage: su username\n");
 		return 1;
@@ -1100,13 +1111,13 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 	char * switch_user = argv[1];
 
 	/* Check if switch_user exists */
-	if(switch_user != NULL && !getpwnam(switch_user)){
+	if(switch_user && !getpwnam(switch_user)){
 		fprintf(stderr, "the account '%s' does not exist\n", switch_user);
 		return 1;
 	}
 
 	int next_sh_pid = shmon_nextshell(switch_user, parent_pid);
-	if(next_sh_pid < 0 && switch_user != NULL) {
+	if(next_sh_pid < 0 && switch_user) {
 		/* User is already logged in */
 		fprintf(stderr, "the account '%s' is already logged in\n", switch_user);
 		return 1;
@@ -1114,62 +1125,15 @@ uint32_t shell_cmd_su(int argc, char * argv[]) {
 
 	usleep(200000);
 
-	/* Use shared memory instead of signals due to permission problems */
-	send_kill_msg_login(next_sh_pid);
+	/* Wake up the login process with pid 'next_sh_pid' */
+	send_wakeup_loginproc(next_sh_pid);
 
 	/* PAUSE THIS SHELL */
 	sig_tstp(SIGTSTP);
 	return 0;
 }
 
-uint32_t shell_cmd_sudo(int argc, char * argv[]) {
-	int fails = 0;
-
-	if (argc < 2) {
-		fprintf(stderr, "usage: %s [command]\n", argv[0]);
-		return 1;
-	}
-
-	while (1) {
-		char * username = getenv("USER");
-		char * password = malloc(sizeof(char) * 1024);
-
-		fprintf(stdout, "[%s] password for %s: ", argv[0], username);
-		fflush(stdout);
-
-		/* Disable echo */
-		struct termios old, new;
-		tcgetattr(fileno(stdin), &old);
-		new = old;
-		new.c_lflag &= (~ECHO);
-		tcsetattr(fileno(stdin), TCSAFLUSH, &new);
-
-		/* Ask for password: */
-		fgets(password, 1024, stdin);
-		password[strlen(password)-1] = '\0';
-		tcsetattr(fileno(stdin), TCSAFLUSH, &old);
-		fprintf(stdout, "\n");
-
-		int uid = helios_auth(username, password);
-		if (uid < 0) {
-			fails++;
-			if (fails == 3) {
-				fprintf(stderr, "%s: %d incorrect password attempts\n", argv[0], fails);
-				break;
-			}
-			fprintf(stderr, "Sorry, try again.\n");
-			continue;
-		}
-
-		char ** args = &argv[1];
-		int ret = execvp(args[0], args);
-		fprintf(stderr, "%s: %s (%d): command not found\n", argv[0], args[0], ret);
-		return 1;
-	}
-	return 1;
-}
-
-void install_commands() {
+void install_builtin_commands() {
 	shell_install_command("cd",      shell_cmd_cd);
 	shell_install_command("chdir",   shell_cmd_cd);
 	shell_install_command("history", shell_cmd_history);
@@ -1179,7 +1143,6 @@ void install_commands() {
 	shell_install_command("pwd", 	 shell_cmd_pwd);
 	shell_install_command("togtime", shell_cmd_togtime);
 	shell_install_command("su", 	 shell_cmd_su);
-	shell_install_command("sudo", 	 shell_cmd_sudo);
 	/* TODO: Add command expr here */
 	/* TODO: And a lot more commands too */
 }

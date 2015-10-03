@@ -41,6 +41,7 @@ C_SRCS += \
 ../helios-src/bin/sleep.c \
 ../helios-src/bin/spawn.c \
 ../helios-src/bin/stat.c \
+../helios-src/bin/sudo.c \
 ../helios-src/bin/syscall.c \
 ../helios-src/bin/terminal.c \
 ../helios-src/bin/touch.c \
@@ -88,6 +89,7 @@ OBJS += \
 ./helios-src/bin/sleep.o \
 ./helios-src/bin/spawn.o \
 ./helios-src/bin/stat.o \
+./helios-src/bin/sudo.o \
 ./helios-src/bin/syscall.o \
 ./helios-src/bin/terminal.o \
 ./helios-src/bin/touch.o \
@@ -135,6 +137,7 @@ C_DEPS += \
 ./helios-src/bin/sleep.d \
 ./helios-src/bin/spawn.d \
 ./helios-src/bin/stat.d \
+./helios-src/bin/sudo.d \
 ./helios-src/bin/syscall.d \
 ./helios-src/bin/terminal.d \
 ./helios-src/bin/touch.d \
@@ -184,7 +187,7 @@ helios-src/bin/init.o: ../helios-src/bin/init.c
 helios-src/bin/login.o: ../helios-src/bin/login.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shmon_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/login.d" -o "$@" "$<"
+	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/shmon/shmon_api.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shm_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/login.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 
@@ -219,14 +222,21 @@ helios-src/bin/ser.o: ../helios-src/bin/ser.c
 helios-src/bin/sh.o: ../helios-src/bin/sh.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/rline.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shmon_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sh.d" -o "$@" "$<"
+	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/rline.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/shmon/shmon_api.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shm_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sh.d" -o "$@" "$<"
+	@echo 'Finished building: $<'
+	@echo ' '
+
+helios-src/bin/sudo.o: ../helios-src/bin/sudo.c
+	@echo 'Building file: $<'
+	@echo 'Invoking: Cross GCC Compiler'
+	i686-munix-gcc -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g -U__STRICT_ANSI__ /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/crypt/sha2.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/security/helios_auth.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/sudo.d" -o "$@" "$<"
 	@echo 'Finished building: $<'
 	@echo ' '
 
 helios-src/bin/terminal.o: ../helios-src/bin/terminal.c
 	@echo 'Building file: $<'
 	@echo 'Invoking: Cross GCC Compiler'
-	i686-munix-gcc -o "$@" "$<" -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/hashmap.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/graphics/graphics.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/pthread.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shmon.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/terminal.d"
+	i686-munix-gcc -o "$@" "$<" -std=c99 -I"/home/miguel/git/munix-helios/helios-src/usr/include" -I/home/miguel/git/munix/libraries/include/mod -I/home/miguel/git/toolchain/munix-hdd/usr/include -O2 -Wall -m32 -Wa,--32 -g /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/list.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/hashmap.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/kbd.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/graphics/graphics.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/pthread.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/shmon/shmon.o /home/miguel/git/munix-helios/munix_helios_toolchain/helios-src/usr/lib/memory/shm_api.o -MMD -MP -MF"$(@:%.o=%.d)" -MT"helios-src/bin/terminal.d"
 	@echo 'Finished building: $<'
 	@echo ' '
 

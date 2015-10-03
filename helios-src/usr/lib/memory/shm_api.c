@@ -9,6 +9,7 @@
 
 #include <shm.h>
 #include <syscall.h>
+#include <stdio.h>
 
 /* Size of channel used between any process and the shared memory manager */
 size_t shman_size = 0;
@@ -21,6 +22,24 @@ static uint8_t is_shman_init = 0;
  */
 static void * get_cmd_channel() {
 	return (void*)syscall_shm_obtain(SHM_RESKEY_SHMAN_CMD, &shman_size);
+}
+
+/*
+ * shman_copy_from_shm - Allocates a packet and copies the packet from the shared memory
+ * [char * shm] - Shared Memory Pointer
+ */
+static shm_packet_t * shman_copy_from_shm(char * shm) {
+	shm_packet_t * packet = malloc(sizeof(shm_packet_t));
+	memcpy(packet, get_packet_ptr(shm), sizeof(shm_packet_t));
+	return packet;
+}
+
+/*
+ * shman_clear_channel - Clears entire shared memory buffer. This can also be used for acknowledging and clearing out the data after fetching it.
+ * [shm_t * dev] - Shared Memory Device
+ */
+static void shman_clear_channel(shm_t * dev) {
+	memset(dev->shm, 0, SHMAN_SIZE);
 }
 
 /*
@@ -37,10 +56,17 @@ static void avoid_collision(char * shm) {
 }
 
 /*
- * shman_init - Initializes the shared memory channel used to communicate with the shared memory manager
+ * shman_start - Initializes the shared memory channel used to communicate with the shared memory manager
  */
-char * shman_init() {
-	shm_manager = get_cmd_channel();
+char * shman_start() {
+	while(!shm_manager) {
+		/* If 'get_cmd_channel' returns 0, then it means the shared memory manager hasn't startup up yet.
+		 * Keep polling the shared memory until it starts working and then it will return a proper address
+		 * for the shm_manager variable */
+		shm_manager = get_cmd_channel();
+		usleep(POLL_THREAD_SLEEP_USEC);
+	}
+
 	is_shman_init = 1;
 	return shm_manager;
 }
@@ -72,7 +98,7 @@ void shman_stop(shm_t * shm_dev) {
  */
 void * shman_send(char cmd, void * packet, uint8_t packet_size, shm_t * dev_for_ack) {
 	if(!is_shman_init)
-		shman_init();
+		shman_start();
 
 	/* Wait for the command channel to free up to prevent collisions */
 	avoid_collision(shm_manager);
@@ -131,10 +157,12 @@ shm_t * shman_create_client(char * server_id, char * client_id) {
 }
 
 /*
- * shman_send - Sends packet to server and receives response back (or not)
+ * shman_send_to_network_clear - Sends packet to server and receives response back (or not)
+ * NOTE: The uint8_t clear_buffer indicates whether or not we will clear the shm buffer after the data is sent
  * [shm_packet_t * packet] - Packet to be sent to the destination node
+ * [uint8_t clear_buffer] - Flag for clearing the shm buffer
  */
-shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
+shm_packet_t * shman_send_to_network_clear(shm_t * dev, shm_packet_t * packet, uint8_t clear_buffer) {
 	if(!is_shman_init) return SHM_ERR_NOINIT;
 
 	/* This will prevent other processes from sending packets from clients that are not theirs */
@@ -153,10 +181,20 @@ shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
 	memcpy(server_response, server_response_ptr, sizeof(shm_packet_t));
 
 	/* Clear out shared memory channel in its entirety */
-	memset(dev->shm, 0, SHMAN_SIZE);
+	if(clear_buffer)
+		shman_clear_channel(dev);
 
 	/* Return data back to the client */
 	return server_response;
+}
+
+/*
+ * shman_send_to_network - Sends packet to network and receives response back (or not)
+ * [shm_t * dev] - Device to send the packet FROM
+ * [shm_packet_t * packet] - Packet to be sent to the destination node
+ */
+shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet) {
+	return shman_send_to_network_clear(dev, packet, 1);
 }
 
 /*
@@ -167,6 +205,7 @@ static void server_wait_for_packet(shm_t * dev) {
 	while(!dev->shm[0])
 		thread_sleep();
 }
+
 /*
  * shman_server_listen - Listens for packets and redirects them to the server callback. Works for servers only.
  * [shm_t * server] - Server pointer
@@ -195,6 +234,9 @@ int shman_server_listen(shm_t * server, shman_packet_cback callback) {
 		server->shm[1] = sizeof(shm_packet_t);
 		memcpy(server->shm + 2, clients_response, sizeof(shm_packet_t));
 		server->shm[0] = 0;
+
+		free(client_response_dat);
+		free(clients_response);
 	}
 
 	return 0;
@@ -213,4 +255,36 @@ shm_packet_t * client_send(shm_t * client, void * message, uint8_t message_size_
 	shm_packet_t * clients_packet = create_packet(client, client->shm_key, SHM_DEV_SERVER, message, message_size_bytes);
 	shm_packet_t * servers_packet = shman_send_to_network(client, clients_packet);
 	return servers_packet;
+}
+
+/*
+ * client_has_packet - Checks (but doesn't wait) if the user has a new packet. If it has, it returns it, otherwise returns NULL
+ * [shm_t * client] - Shared Memory Client Device
+ */
+shm_packet_t * client_has_packet(shm_t * client) {
+	shm_packet_t * packet = NULL;
+	if(client->shm[0]) {
+		packet = (shm_packet_t*)get_packet_ptr(client->shm);
+		if(SHM_PACKET_IS_IT_FOR_US(packet, client)) {
+			packet = shman_copy_from_shm(client->shm); /* fetch packet */
+			shman_clear_channel(client); /* acknowledge it and clear it out */
+		} else {
+			packet = NULL;
+		}
+	}
+	return packet;
+}
+
+/*
+ * client_has_packet_broadcast_deviceless - Really dangerous function which indicates if there is
+ * data on the shared memory. It does not support shared memory devices nor packets.
+ * This is currently used on both login.c and sh.c for 'client-client' communication
+ * [char * shm] - Shared Memory Channel
+ */
+int client_has_packet_broadcast_deviceless(char * shm) {
+	if(shm[0]) {
+		shm[0] = 0; /* clear out flag. we now know we had something there */
+		return 1;
+	}
+	return 0;
 }

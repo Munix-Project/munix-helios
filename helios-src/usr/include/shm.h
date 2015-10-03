@@ -226,6 +226,9 @@ shm_t * shman_create_server(char * server_id);
 shm_t * shman_create_client(char * server_id, char * client_id);
 int shman_server_listen(shm_t * server, shman_packet_cback callback);
 shm_packet_t * shman_send_to_network(shm_t * dev, shm_packet_t * packet);
+shm_packet_t * shman_send_to_network_clear(shm_t * dev, shm_packet_t * packet, uint8_t clear_buffer);
 shm_packet_t * client_send(shm_t * client, void * message, uint8_t message_size_bytes);
+shm_packet_t * client_has_packet(shm_t * client);
+int client_has_packet_broadcast_deviceless(char * shm);
 
 #endif /* HELIOS_SRC_USR_INCLUDE_SHM_H_ */
